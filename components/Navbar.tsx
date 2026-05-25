@@ -4,7 +4,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { ROLES } from '@/lib/auth';
-import logoImage from '@/assets/logo.png';
 import LogoutButton from './LogoutButton';
 import { useSession } from '@/app/context/SessionContext';
 
@@ -73,10 +72,10 @@ export default function Navbar() {
                     <div className="flex items-center">
                         <Link href={session ? "/" : "/"} className="flex items-center hover:opacity-80 transition-opacity">
                             <Image
-                                src={logoImage}
-                                alt="NextMiner Logo"
-                                width={150}
-                                height={40}
+                                src="/assets/viasentra3.png"
+                                alt="ViaSentra Logo"
+                                width={220}
+                                height={60}
                                 priority
                                 className="h-10 w-auto"
                             />
