@@ -45,6 +45,12 @@ export async function GET(
                         username: true,
                     },
                 },
+                empresa: {
+                    select: {
+                        id: true,
+                        nombre: true,
+                    },
+                },
                 checklistEquipo: true,
                 checklistTractoCamion: true,
                 checklistFatiga: true,
@@ -135,20 +141,11 @@ export async function PATCH(
             );
         }
 
-        // Verificar que el servicio esté en un estado editable
-        // Solo permitir edición en estados iniciales antes de que el operario acepte
-        const estadosEditables = ['PENDIENTE', 'ASIGNADO'];
-        if (!estadosEditables.includes(servicio.estado)) {
-            return NextResponse.json(
-                { message: 'Este servicio ya no puede ser editado. El operario ya ha interactuado con él.' },
-                { status: 400 }
-            );
-        }
-
         const body = await request.json();
         const {
             codigo,
             descripcion,
+            empresaId,
             origen,
             destino,
             telefonoOrigen,
@@ -156,6 +153,109 @@ export async function PATCH(
             operarioId,
             observaciones,
         } = body;
+
+        const estadosEdicionCompleta = ['PENDIENTE', 'ASIGNADO'];
+        const estadosEdicionEmpresaPostAceptacion = [
+            'ACEPTADO',
+            'EN_CHECKLIST',
+            'PENDIENTE_APROBACION',
+            'APROBADO',
+            'EN_EJECUCION',
+            'COMPLETADO',
+        ];
+
+        const permiteEdicionCompleta = estadosEdicionCompleta.includes(servicio.estado);
+        const esCoordinadorPropietario = session.rol === ROLES.COORDINADOR && servicio.coordinadorId === session.id;
+        const permiteEdicionSoloEmpresa =
+            estadosEdicionEmpresaPostAceptacion.includes(servicio.estado)
+            && esCoordinadorPropietario;
+
+        if (!permiteEdicionCompleta && !permiteEdicionSoloEmpresa) {
+            return NextResponse.json(
+                { message: 'Este servicio ya no permite edición para tu perfil' },
+                { status: 400 }
+            );
+        }
+
+        if (empresaId === undefined || empresaId === null) {
+            return NextResponse.json(
+                { message: 'Debes seleccionar una empresa' },
+                { status: 400 }
+            );
+        }
+
+        const empresaIdNumber = Number(empresaId);
+        if (!Number.isInteger(empresaIdNumber) || empresaIdNumber <= 0) {
+            return NextResponse.json(
+                { message: 'La empresa seleccionada es inválida' },
+                { status: 400 }
+            );
+        }
+
+        const empresa = await prisma.empresa.findUnique({
+            where: { id: empresaIdNumber },
+            select: { id: true },
+        });
+
+        if (!empresa) {
+            return NextResponse.json(
+                { message: 'La empresa seleccionada no existe' },
+                { status: 400 }
+            );
+        }
+
+        if (!permiteEdicionCompleta) {
+            const intentoEditarCamposGenerales =
+                codigo !== undefined
+                || descripcion !== undefined
+                || origen !== undefined
+                || destino !== undefined
+                || telefonoOrigen !== undefined
+                || telefonoDestino !== undefined
+                || operarioId !== undefined
+                || observaciones !== undefined;
+
+            if (intentoEditarCamposGenerales) {
+                return NextResponse.json(
+                    { message: 'En este estado solo se permite editar la empresa del servicio' },
+                    { status: 400 }
+                );
+            }
+
+            const servicioActualizado = await prisma.servicio.update({
+                where: { id: servicioId },
+                data: {
+                    empresaId: empresaIdNumber,
+                },
+                include: {
+                    operario: {
+                        select: {
+                            id: true,
+                            name: true,
+                            username: true,
+                        },
+                    },
+                    coordinador: {
+                        select: {
+                            id: true,
+                            name: true,
+                            username: true,
+                        },
+                    },
+                    empresa: {
+                        select: {
+                            id: true,
+                            nombre: true,
+                        },
+                    },
+                },
+            });
+
+            return NextResponse.json({
+                message: 'Empresa del servicio actualizada exitosamente',
+                servicio: servicioActualizado,
+            });
+        }
 
         // Validaciones básicas
         if (codigo && !codigo.trim()) {
@@ -228,6 +328,7 @@ export async function PATCH(
             data: {
                 ...(codigo && { codigo }),
                 ...(descripcion && { descripcion }),
+                empresaId: empresaIdNumber,
                 ...(origen && { origen }),
                 ...(destino && { destino }),
                 ...(telefonoOrigen !== undefined && { telefonoOrigen: telefonoOrigen?.trim() || null }),
@@ -248,6 +349,12 @@ export async function PATCH(
                         id: true,
                         name: true,
                         username: true,
+                    },
+                },
+                empresa: {
+                    select: {
+                        id: true,
+                        nombre: true,
                     },
                 },
             },

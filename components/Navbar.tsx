@@ -37,7 +37,7 @@ export default function Navbar() {
     useEffect(() => {
         // Fetch caminatas pendientes usando endpoint ligero de count
         const fetchCaminatasPendientes = () => {
-            if (session && [ROLES.SUPERVISOR].includes(session.rol as any)) {
+            if (session?.rol === ROLES.SUPERVISOR) {
                 fetch('/api/caminatas/pendientes-count')
                     .then(res => {
                         if (!res.ok) return { count: 0 };
@@ -154,6 +154,16 @@ export default function Navbar() {
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                                     </svg>
                                                     Gestión de Usuarios
+                                                </Link>
+                                                <Link
+                                                    href="/empresas"
+                                                    onClick={() => setAdminMenuOpen(false)}
+                                                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                                                >
+                                                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4" />
+                                                    </svg>
+                                                    Gestión de Empresas
                                                 </Link>
                                                 <Link
                                                     href="/equipos"
@@ -296,6 +306,16 @@ export default function Navbar() {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                     </svg>
                                     Gestión de Usuarios
+                                </Link>
+                                <Link
+                                    href="/empresas"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                >
+                                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4" />
+                                    </svg>
+                                    Gestión de Empresas
                                 </Link>
                                 <Link
                                     href="/equipos"

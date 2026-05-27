@@ -53,6 +53,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     try {
         const { id } = await params;
+        const body = await request.json().catch(() => ({}));
         const tarea = await prisma.tareaAsignada.findUnique({
             where: { id: parseInt(id) },
         });
@@ -71,6 +72,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
 
         if (tarea.tipo === 'caminata') {
+            const empresaIdParsed = Number.parseInt(String((body as { empresaId?: unknown })?.empresaId ?? ''), 10);
+
+            if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+                return NextResponse.json({ error: 'Debes seleccionar una empresa para iniciar la caminata' }, { status: 400 });
+            }
+
+            const empresa = await prisma.empresa.findUnique({
+                where: { id: empresaIdParsed },
+                select: { id: true },
+            });
+
+            if (!empresa) {
+                return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+            }
+
             const result = await prisma.$transaction(async (tx) => {
                 const ultimaCaminata = await tx.caminataSeguridad.findFirst({
                     orderBy: { id: 'desc' },
@@ -85,6 +101,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                         zona: 'Pendiente por definir',
                         faena: 'Pendiente por definir',
                         actividad: tarea.descripcion?.trim() || 'Actividad pendiente por definir',
+                        empresaId: empresa.id,
                         coordinadorId: tarea.creadoPorId,
                         asignadoId: tarea.asignadoId,
                         estado: 'PENDIENTE',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface ControlCalidadARTFormProps {
     caminataId: number | null;
@@ -14,19 +14,42 @@ interface ItemControl {
     comentario: string;
 }
 
+interface Empresa {
+    id: number;
+    nombre: string;
+}
+
 export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, onCancel }: ControlCalidadARTFormProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [imagenes, setImagenes] = useState<File[]>([]);
+    const [empresas, setEmpresas] = useState<Empresa[]>([]);
 
 
     const [formData, setFormData] = useState({
+        empresaId: '',
         zonas: '',
         faenas: '',
         observaciones: '',
         area: '',
         tareaActividad: '',
     });
+
+    useEffect(() => {
+        const fetchEmpresas = async () => {
+            try {
+                const response = await fetch('/api/empresas');
+                if (response.ok) {
+                    const data = await response.json();
+                    setEmpresas(Array.isArray(data) ? data : []);
+                }
+            } catch (err) {
+                console.error('Error al cargar empresas:', err);
+            }
+        };
+
+        fetchEmpresas();
+    }, []);
 
     // Items de control (9 items según especificación)
     const [itemsControl, setItemsControl] = useState<ItemControl[]>([
@@ -69,6 +92,11 @@ export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, 
         setError(null);
 
         try {
+            const empresaIdNumber = Number.parseInt(formData.empresaId, 10);
+            if (!Number.isInteger(empresaIdNumber) || empresaIdNumber <= 0) {
+                throw new Error('Debes seleccionar una empresa valida');
+            }
+
             let imagenesUrls: Array<{ url: string; publicId: string }> = [];
 
             // Si hay imágenes, subirlas a Cloudinary primero
@@ -111,6 +139,7 @@ export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, 
 
             const controlData = {
                 ...formData,
+                empresaId: empresaIdNumber,
                 itemsControl: itemsControlConDescripcion,
                 imagenes: imagenesUrls,
                 cantidadImagenes: imagenesUrls.length,
@@ -145,7 +174,7 @@ export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, 
         }
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         setFormData({
             ...formData,
             [e.target.name]: e.target.value,
@@ -195,6 +224,31 @@ export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, 
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Empresa */}
+                    <div>
+                        <label htmlFor="empresaId" className="block text-sm font-medium text-gray-700 mb-2">
+                            Empresa *
+                        </label>
+                        <select
+                            id="empresaId"
+                            name="empresaId"
+                            required
+                            value={formData.empresaId}
+                            onChange={handleChange}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                        >
+                            <option value="">Seleccionar empresa...</option>
+                            {empresas.map((empresa) => (
+                                <option key={empresa.id} value={empresa.id.toString()}>
+                                    {empresa.nombre}
+                                </option>
+                            ))}
+                        </select>
+                        {empresas.length === 0 && (
+                            <p className="mt-1 text-xs text-amber-600">No hay empresas disponibles. Solicita crear una empresa antes de reportar.</p>
+                        )}
+                    </div>
+
                     {/* Zonas */}
                     <div>
                         <label htmlFor="zonas" className="block text-sm font-medium text-gray-700 mb-2">

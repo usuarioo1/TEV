@@ -20,6 +20,7 @@ interface DistribucionResponse {
 interface DistribucionEstatusUsuariosProps {
     fechaDesde?: string;
     fechaHasta?: string;
+    empresaId?: string;
 }
 
 const ROL_LABEL: Record<string, string> = {
@@ -32,6 +33,7 @@ const ROL_LABEL: Record<string, string> = {
 export default function DistribucionEstatusUsuarios({
     fechaDesde,
     fechaHasta,
+    empresaId,
 }: DistribucionEstatusUsuariosProps) {
     const [usuarios, setUsuarios] = useState<UsuarioDistribucion[]>([]);
     const [loading, setLoading] = useState(true);
@@ -48,6 +50,7 @@ export default function DistribucionEstatusUsuarios({
                 const params = new URLSearchParams();
                 if (fechaDesde) params.set('fechaInicio', fechaDesde);
                 if (fechaHasta) params.set('fechaFin', fechaHasta);
+                if (empresaId) params.set('empresaId', empresaId);
 
                 const url = params.toString()
                     ? `/api/dashboard/distribucion-estatus-usuarios?${params.toString()}`
@@ -76,7 +79,7 @@ export default function DistribucionEstatusUsuarios({
         return () => {
             mounted = false;
         };
-    }, [fechaDesde, fechaHasta]);
+    }, [fechaDesde, fechaHasta, empresaId]);
 
     const hasData = useMemo(
         () => usuarios.some((u) => u.total > 0),

@@ -20,6 +20,12 @@ export default async function ServiciosEnEjecucionPage() {
             estado: 'EN_EJECUCION',
         },
         include: {
+            empresa: {
+                select: {
+                    id: true,
+                    nombre: true,
+                },
+            },
             operario: {
                 select: {
                     id: true,
@@ -68,31 +74,31 @@ export default async function ServiciosEnEjecucionPage() {
                         <nav className="flex overflow-x-auto px-4 sm:px-0 -mb-px space-x-4 sm:space-x-8 scrollbar-hide">
                             <Link
                                 href="/supervisor"
-                                className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex-shrink-0"
+                                className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm shrink-0"
                             >
                                 Pendientes
                             </Link>
                             <Link
                                 href="/supervisor/aprobados"
-                                className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex-shrink-0"
+                                className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm shrink-0"
                             >
                                 Aprobados
                             </Link>
                             <Link
                                 href="/supervisor/en-ejecucion"
-                                className="border-indigo-500 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex-shrink-0"
+                                className="border-indigo-500 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm shrink-0"
                             >
                                 En Ejecución
                             </Link>
                             <Link
                                 href="/supervisor/completados"
-                                className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex-shrink-0"
+                                className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm shrink-0"
                             >
                                 Completados
                             </Link>
                             <Link
                                 href="/supervisor/rechazados"
-                                className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex-shrink-0"
+                                className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm shrink-0"
                             >
                                 Rechazados
                             </Link>
@@ -189,6 +195,12 @@ export default async function ServiciosEnEjecucionPage() {
                                             {servicio.descripcion && (
                                                 <p className="text-sm text-gray-600 mb-4">
                                                     {servicio.descripcion}
+                                                </p>
+                                            )}
+
+                                            {servicio.empresa?.nombre && (
+                                                <p className="text-xs text-gray-500 mb-4">
+                                                    Servicio para: <span className="font-medium text-gray-700">{servicio.empresa.nombre}</span>
                                                 </p>
                                             )}
 

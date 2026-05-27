@@ -62,6 +62,7 @@ export default function RechazosOperarioModal({
                                     <tr>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Servicio</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Estado</th>
+                                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Empresa</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Motivo rechazo</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Operario</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Coordinador</th>
@@ -81,6 +82,7 @@ export default function RechazosOperarioModal({
                                                 <p className="text-xs text-gray-500 mt-0.5">{servicio.origen} → {servicio.destino}</p>
                                             </td>
                                             <td className="px-3 py-2 text-gray-700">{servicio.estadoServicio}</td>
+                                            <td className="px-3 py-2 text-gray-700">{servicio.empresaNombre}</td>
                                             <td className="px-3 py-2 text-gray-700">
                                                 <p className="max-w-xs truncate" title={servicio.motivoRechazo || ''}>{servicio.motivoRechazo || '-'}</p>
                                             </td>

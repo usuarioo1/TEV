@@ -126,7 +126,21 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
 
         // Extraer el responsableCierre y tareaId del body
-        const { responsableCierre, _tareaId, ...datosReporte } = body;
+        const { responsableCierre, empresaId, _tareaId, ...datosReporte } = body;
+
+        const empresaIdParsed = Number.parseInt(String(empresaId ?? ''), 10);
+        if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+            return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+        }
+
+        const empresa = await prisma.empresa.findUnique({
+            where: { id: empresaIdParsed },
+            select: { id: true, nombre: true },
+        });
+
+        if (!empresa) {
+            return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+        }
 
         // Si viene de una tarea asignada, el creador oficial es el prevencionista que asignó la tarea
         let creadoPorId = session.id;
@@ -142,6 +156,12 @@ export async function POST(request: NextRequest) {
                 datosReporte._completadoPorNombre = session.name || session.username;
             }
         }
+
+        const datosReporteConEmpresa = {
+            ...datosReporte,
+            empresaId: empresa.id,
+            empresaNombre: empresa.nombre,
+        };
         console.log('🔍 Creando reporte:', {
             creadoPorId,
             responsableCierre: responsableCierre,
@@ -153,7 +173,7 @@ export async function POST(request: NextRequest) {
         const nuevoReporte = await prisma.reportePeligro.create({
             data: {
                 creadoPorId,
-                datos: datosReporte, // Todo el formulario va en datos (sin responsableCierre)
+                datos: datosReporteConEmpresa, // Todo el formulario va en datos (sin responsableCierre)
                 estado: 'PENDIENTE',
                 responsableCierreId: responsableCierre ? parseInt(responsableCierre) : null,
             },

@@ -44,6 +44,12 @@ export default async function ServiciosOperarioPage() {
     const servicios = await prisma.servicio.findMany({
         where: whereClause,
         include: {
+            empresa: {
+                select: {
+                    id: true,
+                    nombre: true,
+                },
+            },
             operario: {
                 select: {
                     name: true,
@@ -129,6 +135,12 @@ export default async function ServiciosOperarioPage() {
             updatedAt: 'desc',
         },
         include: {
+            empresa: {
+                select: {
+                    id: true,
+                    nombre: true,
+                },
+            },
             operario: {
                 select: {
                     name: true,

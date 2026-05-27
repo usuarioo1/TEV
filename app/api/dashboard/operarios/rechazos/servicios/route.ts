@@ -41,6 +41,16 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const fechaInicioParam = searchParams.get('fechaInicio');
         const fechaFinParam = searchParams.get('fechaFin');
+        const empresaIdParam = searchParams.get('empresaId');
+
+        let empresaId: number | null = null;
+        if (empresaIdParam) {
+            const parsedEmpresaId = Number(empresaIdParam);
+            if (!Number.isInteger(parsedEmpresaId) || parsedEmpresaId <= 0) {
+                return NextResponse.json({ error: 'empresaId inválido' }, { status: 400 });
+            }
+            empresaId = parsedEmpresaId;
+        }
 
         const fechaInicioDate = fechaInicioParam ? parseSantiagoDate(fechaInicioParam) : null;
         const fechaFinDate = fechaFinParam ? parseSantiagoDate(fechaFinParam, true) : null;
@@ -55,10 +65,16 @@ export async function GET(request: Request) {
                 estado: 'RECHAZADO',
                 motivoRechazo: { not: null },
                 ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                ...(empresaId && { empresaId }),
             },
             select: {
                 id: true,
                 codigo: true,
+                empresa: {
+                    select: {
+                        nombre: true,
+                    },
+                },
                 descripcion: true,
                 origen: true,
                 destino: true,
@@ -90,6 +106,7 @@ export async function GET(request: Request) {
             servicios: servicios.map((servicio) => ({
                 servicioId: servicio.id,
                 servicioCodigo: servicio.codigo,
+                empresaNombre: servicio.empresa?.nombre || 'Sin empresa',
                 descripcion: servicio.descripcion,
                 origen: servicio.origen,
                 destino: servicio.destino,

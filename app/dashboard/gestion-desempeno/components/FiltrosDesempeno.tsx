@@ -1,15 +1,18 @@
-import type { SimpleUser } from '../types';
+import type { EmpresaOption, SimpleUser } from '../types';
 
 interface FiltrosDesempenoProps {
     fechaDesde: string;
     fechaHasta: string;
     selectedUserId: string;
+    selectedEmpresaId: string;
     canFilterByUser: boolean;
     users: SimpleUser[];
+    empresas: EmpresaOption[];
     hasFiltroActivo: boolean;
     onFechaDesdeChange: (value: string) => void;
     onFechaHastaChange: (value: string) => void;
     onSelectedUserIdChange: (value: string) => void;
+    onSelectedEmpresaIdChange: (value: string) => void;
     onAplicar: () => void;
     onLimpiar: () => void;
 }
@@ -18,12 +21,15 @@ export default function FiltrosDesempeno({
     fechaDesde,
     fechaHasta,
     selectedUserId,
+    selectedEmpresaId,
     canFilterByUser,
     users,
+    empresas,
     hasFiltroActivo,
     onFechaDesdeChange,
     onFechaHastaChange,
     onSelectedUserIdChange,
+    onSelectedEmpresaIdChange,
     onAplicar,
     onLimpiar,
 }: FiltrosDesempenoProps) {
@@ -51,6 +57,24 @@ export default function FiltrosDesempeno({
                     onChange={(e) => onFechaHastaChange(e.target.value)}
                     className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-50 text-black"
                 />
+            </div>
+
+            <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Empresa
+                </label>
+                <select
+                    value={selectedEmpresaId}
+                    onChange={(e) => onSelectedEmpresaIdChange(e.target.value)}
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-50 text-black min-w-56"
+                >
+                    <option value="">Todas las empresas</option>
+                    {empresas.map((empresa) => (
+                        <option key={empresa.id} value={String(empresa.id)}>
+                            {empresa.nombre}
+                        </option>
+                    ))}
+                </select>
             </div>
 
             {canFilterByUser && (

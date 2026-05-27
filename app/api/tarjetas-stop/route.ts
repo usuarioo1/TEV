@@ -108,7 +108,21 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
 
         // Extraer el responsableCierre y tareaId del body
-        const { responsableCierre, _tareaId, ...datosTarjeta } = body;
+        const { responsableCierre, empresaId, _tareaId, ...datosTarjeta } = body;
+
+        const empresaIdParsed = Number.parseInt(String(empresaId ?? ''), 10);
+        if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+            return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+        }
+
+        const empresa = await prisma.empresa.findUnique({
+            where: { id: empresaIdParsed },
+            select: { id: true, nombre: true },
+        });
+
+        if (!empresa) {
+            return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+        }
 
         // Si viene de una tarea asignada, el creador oficial es el prevencionista que asignó la tarea
         let creadoPorId = session.id;
@@ -124,6 +138,12 @@ export async function POST(request: NextRequest) {
                 datosTarjeta._completadoPorNombre = session.name || session.username;
             }
         }
+
+        const datosTarjetaConEmpresa = {
+            ...datosTarjeta,
+            empresaId: empresa.id,
+            empresaNombre: empresa.nombre,
+        };
         console.log('🔍 Creando tarjeta:', {
             creadoPorId,
             responsableCierre: responsableCierre,
@@ -135,7 +155,7 @@ export async function POST(request: NextRequest) {
         const nuevaTarjeta = await prisma.tarjetaStop.create({
             data: {
                 creadoPorId,
-                datos: datosTarjeta, // Todo el formulario va en datos (sin responsableCierre)
+                datos: datosTarjetaConEmpresa, // Todo el formulario va en datos (sin responsableCierre)
                 estado: 'PENDIENTE',
                 responsableCierreId: responsableCierre ? parseInt(responsableCierre) : null,
             },

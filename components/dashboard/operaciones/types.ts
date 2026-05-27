@@ -13,6 +13,11 @@ export interface Coordinador {
     username: string;
 }
 
+export interface Empresa {
+    id: number;
+    nombre: string;
+}
+
 export interface Supervisor {
     id: number;
     name: string | null;
@@ -105,6 +110,7 @@ export interface Servicio {
     fechaInicioEjecucion: string | null;
     fechaFinalizacion: string | null;
     observaciones: string | null;
+    empresa: Empresa | null;
     operario: Operario | null;
     coordinador: Coordinador | null;
     checklistsCompletados: {

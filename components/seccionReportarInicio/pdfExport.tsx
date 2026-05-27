@@ -20,8 +20,16 @@ const fmtDate = (value?: string | null) => {
     }
 };
 
+const getEmpresaNombre = (datos: any, caminataEmpresaNombre?: string | null) => {
+    const empresa = [datos?.empresaNombre, datos?.empresa, datos?.empresaResponsable, caminataEmpresaNombre]
+        .find((value) => typeof value === 'string' && value.trim().length > 0);
+
+    return empresa || null;
+};
+
 export async function exportRecordPdf(record: any, tipo: 'reporte' | 'tarjeta' | 'art' | 'caminata') {
     const { pdf, Document, Page, Text, View, StyleSheet } = await import('@react-pdf/renderer');
+    const empresaNombre = getEmpresaNombre(record?.datos, record?.caminata?.empresa?.nombre);
 
     const styles = StyleSheet.create({
         page: { padding: 30, fontSize: 9, fontFamily: 'Helvetica', backgroundColor: '#f8fafc' },
@@ -87,6 +95,7 @@ export async function exportRecordPdf(record: any, tipo: 'reporte' | 'tarjeta' |
                         <GItem label="Tipo de Peligro" value={record.datos?.tipoPeligro} />
                         <GItem label="Zona" value={record.datos?.zonas || record.caminata?.zona} />
                         <GItem label="Faena" value={record.datos?.faena || record.caminata?.faena} />
+                        <GItem label="Empresa" value={empresaNombre} />
                         <GItem label="Ubicación" value={record.datos?.ubicacion} />
                         <GItem label="Actividad" value={record.datos?.actividad} />
                         <GItem label="Tarea" value={record.datos?.tarea} />
@@ -178,6 +187,7 @@ export async function exportRecordPdf(record: any, tipo: 'reporte' | 'tarjeta' |
                         <GItem label="Causa" value={record.datos?.causa} />
                         <GItem label="Zona" value={record.datos?.zonas || record.caminata?.zona} />
                         <GItem label="Faena" value={record.datos?.faenas || record.caminata?.faena} />
+                        <GItem label="Empresa" value={empresaNombre} />
                         <GItem label="Causal de Detención" value={record.datos?.causalDetencion} />
                         <GItem label="Motivo Aplicación" value={record.datos?.motivoAplicacionFinal || record.datos?.motivoAplicacion} />
                         <GItem label="Caminata" value={record.caminata?.codigo} />
@@ -258,6 +268,7 @@ export async function exportRecordPdf(record: any, tipo: 'reporte' | 'tarjeta' |
                             <GItem label="Caminata" value={record.caminata?.codigo} />
                             <GItem label="Zona" value={record.caminata?.zona || datos.zonas} />
                             <GItem label="Faena" value={record.caminata?.faena || datos.faenas || datos.faena} />
+                            <GItem label="Empresa" value={empresaNombre} />
                             <GItem label="Área" value={datos.area} />
                             <GItem label="Tarea/Actividad" value={datos.tareaActividad} />
                         </View>
@@ -328,6 +339,7 @@ export async function exportDetailPdf(
     const datos = alerta.datos || {};
     const zona = alerta.caminata?.zona || datos.zonas || null;
     const faena = alerta.caminata?.faena || datos.faenas || datos.faena || null;
+    const empresaNombre = getEmpresaNombre(datos, alerta.caminata?.empresa?.nombre);
     const creador = alerta.creadoPor?.name || alerta.creadoPor?.username || 'N/A';
     const responsableCierreNombre = alerta.responsableCierre
         ? (alerta.responsableCierre.name || alerta.responsableCierre.username)
@@ -511,6 +523,7 @@ export async function exportDetailPdf(
                             <GItem label="Caminata" value={alerta.caminata?.codigo} />
                             <GItem label="Zona" value={zona} />
                             <GItem label="Faena" value={faena} />
+                            <GItem label="Empresa" value={empresaNombre} />
                         </View>
                     </View>
 
@@ -603,6 +616,7 @@ export async function exportDetailPdf(
                             <GItem label="Caminata" value={alerta.caminata?.codigo} />
                             <GItem label="Zona" value={zona} />
                             <GItem label="Faena" value={faena} />
+                            <GItem label="Empresa" value={empresaNombre} />
                         </View>
                     </View>
 
@@ -677,6 +691,7 @@ export async function exportDetailPdf(
                             <GItem label="Caminata" value={alerta.caminata?.codigo} />
                             <GItem label="Zona" value={zona} />
                             <GItem label="Faena" value={faena} />
+                            <GItem label="Empresa" value={empresaNombre} />
                             <GItem label="Área" value={datos.area} />
                             <GItem label="Tarea/Actividad" value={datos.tareaActividad} />
                         </View>

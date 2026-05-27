@@ -9,8 +9,14 @@ interface Operario {
     name: string | null;
 }
 
+interface Empresa {
+    id: number;
+    nombre: string;
+}
+
 interface CrearServicioFormProps {
     operarios: Operario[];
+    empresas: Empresa[];
 }
 
 function getSantiagoNowParts() {
@@ -34,7 +40,7 @@ function getSantiagoNowParts() {
     };
 }
 
-export default function CrearServicioForm({ operarios }: CrearServicioFormProps) {
+export default function CrearServicioForm({ operarios, empresas }: CrearServicioFormProps) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -42,6 +48,7 @@ export default function CrearServicioForm({ operarios }: CrearServicioFormProps)
     // Estados del formulario
     const [codigo, setCodigo] = useState('');
     const [descripcion, setDescripcion] = useState('');
+    const [empresaId, setEmpresaId] = useState<number | ''>('');
     const [origen, setOrigen] = useState('');
     const [destino, setDestino] = useState('');
     const [telefonoOrigen, setTelefonoOrigen] = useState('');
@@ -70,6 +77,11 @@ export default function CrearServicioForm({ operarios }: CrearServicioFormProps)
             return;
         }
 
+        if (!empresaId) {
+            setError('Debes seleccionar una empresa');
+            return;
+        }
+
         if (!origen.trim()) {
             setError('El origen es requerido');
             return;
@@ -95,6 +107,7 @@ export default function CrearServicioForm({ operarios }: CrearServicioFormProps)
                 body: JSON.stringify({
                     codigo,
                     descripcion,
+                    empresaId: Number(empresaId),
                     origen,
                     destino,
                     telefonoOrigen: telefonoOrigen.trim() || null,
@@ -171,6 +184,32 @@ export default function CrearServicioForm({ operarios }: CrearServicioFormProps)
                         placeholder="Transporte de mercancía, entrega de documentos, etc..."
                         required
                     />
+                </div>
+
+                {/* Empresa */}
+                <div>
+                    <label htmlFor="empresaId" className="block text-sm font-medium text-gray-700 mb-2">
+                        Empresa <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                        id="empresaId"
+                        value={empresaId}
+                        onChange={(e) => setEmpresaId(e.target.value ? Number(e.target.value) : '')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                        required
+                    >
+                        <option value="">Selecciona una empresa...</option>
+                        {empresas.map((empresa) => (
+                            <option key={empresa.id} value={empresa.id}>
+                                {empresa.nombre}
+                            </option>
+                        ))}
+                    </select>
+                    {empresas.length === 0 && (
+                        <p className="mt-1 text-xs text-red-600">
+                            No hay empresas disponibles para asignar.
+                        </p>
+                    )}
                 </div>
 
                 {/* Origen */}
@@ -309,7 +348,7 @@ export default function CrearServicioForm({ operarios }: CrearServicioFormProps)
                 </button>
                 <button
                     type="submit"
-                    disabled={loading || operarios.length === 0}
+                    disabled={loading || operarios.length === 0 || empresas.length === 0}
                     className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {loading ? 'Creando...' : 'Crear Servicio'}

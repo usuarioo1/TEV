@@ -71,6 +71,12 @@ export default async function SupervisorDashboardPage({ searchParams }: Supervis
     const serviciosPendientes = await prisma.servicio.findMany({
         where: pendientesWhere,
         include: {
+            empresa: {
+                select: {
+                    id: true,
+                    nombre: true,
+                },
+            },
             operario: {
                 select: {
                     id: true,
@@ -105,6 +111,12 @@ export default async function SupervisorDashboardPage({ searchParams }: Supervis
             ...(hasDateFilter && { fechaAsignacion: filtroFechaWhere }),
         },
         include: {
+            empresa: {
+                select: {
+                    id: true,
+                    nombre: true,
+                },
+            },
             operario: {
                 select: {
                     name: true,
@@ -425,6 +437,12 @@ export default async function SupervisorDashboardPage({ searchParams }: Supervis
                                                 </p>
                                             )}
 
+                                            {servicio.empresa?.nombre && (
+                                                <p className="text-xs text-gray-500 mb-4">
+                                                    Servicio para: <span className="font-medium text-gray-700">{servicio.empresa.nombre}</span>
+                                                </p>
+                                            )}
+
                                             {/* Validaciones */}
                                             <div className="mb-4 space-y-2 bg-gray-50 rounded-lg p-3">
                                                 <div className="flex items-center text-xs">
@@ -502,6 +520,11 @@ export default async function SupervisorDashboardPage({ searchParams }: Supervis
                                                 <p className="text-xs text-gray-500 mt-1">
                                                     Operario: {servicio.operario?.name || servicio.operario?.username}
                                                 </p>
+                                                {servicio.empresa?.nombre && (
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Servicio para: {servicio.empresa.nombre}
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="text-left sm:text-right sm:ml-4 shrink-0">
                                                 <p className="text-xs text-gray-500">

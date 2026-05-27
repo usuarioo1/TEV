@@ -43,6 +43,16 @@ export async function GET(request: NextRequest) {
         const fechaDesde = searchParams.get('fechaDesde');
         const fechaHasta = searchParams.get('fechaHasta');
         const estado = searchParams.get('estado');
+        const empresaIdParam = searchParams.get('empresaId');
+
+        let empresaId: number | null = null;
+        if (empresaIdParam) {
+            const parsedEmpresaId = Number(empresaIdParam);
+            if (!Number.isInteger(parsedEmpresaId) || parsedEmpresaId <= 0) {
+                return NextResponse.json({ error: 'empresaId inválido' }, { status: 400 });
+            }
+            empresaId = parsedEmpresaId;
+        }
 
         // Construir filtro de consulta
         const whereClause: Prisma.ServicioWhereInput = {};
@@ -62,10 +72,20 @@ export async function GET(request: NextRequest) {
             whereClause.estado = estado;
         }
 
+        if (empresaId) {
+            whereClause.empresaId = empresaId;
+        }
+
         // Obtener todos los servicios con sus relaciones
         const servicios = await prisma.servicio.findMany({
             where: whereClause,
             include: {
+                empresa: {
+                    select: {
+                        id: true,
+                        nombre: true,
+                    },
+                },
                 operario: {
                     select: {
                         id: true,
@@ -155,6 +175,7 @@ export async function GET(request: NextRequest) {
                 fechaInicioEjecucion: servicio.fechaInicio,
                 fechaFinalizacion: servicio.fechaFinalizacion,
                 observaciones: servicio.observaciones,
+                empresa: servicio.empresa,
                 operario: servicio.operario,
                 coordinador: servicio.coordinador,
                 checklistsCompletados,

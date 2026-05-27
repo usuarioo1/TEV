@@ -116,12 +116,26 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const fechaInicioParam = searchParams.get('fechaInicio');
     const fechaFinParam = searchParams.get('fechaFin');
+    const empresaIdParam = searchParams.get('empresaId');
+
+    let empresaId: number | null = null;
+    if (empresaIdParam) {
+        const parsedEmpresaId = Number(empresaIdParam);
+        if (!Number.isInteger(parsedEmpresaId) || parsedEmpresaId <= 0) {
+            return NextResponse.json({ error: 'empresaId invalido' }, { status: 400 });
+        }
+        empresaId = parsedEmpresaId;
+    }
+
     // Parsear fechas explícitamente en zona horaria America/Santiago (maneja DST automáticamente)
     const fechaInicioDate = fechaInicioParam ? parseSantiagoDate(fechaInicioParam) : null;
     const fechaFinDate = fechaFinParam ? parseSantiagoDate(fechaFinParam, true) : null;
     const checklistFechaWhere = buildDateOnlyCompatWhere(fechaInicioParam, fechaFinParam);
     const hasChecklistDateFilter = !!(checklistFechaWhere.gte || checklistFechaWhere.lte);
     const hasDateFilter = !!(fechaInicioDate || fechaFinDate);
+    const hasEmpresaFilter = !!empresaId;
+    const servicioEmpresaWhere = empresaId ? { empresaId } : {};
+    const hasServicioFilter = hasDateFilter || hasEmpresaFilter;
     const servicioDateWhere = {
         ...(fechaInicioDate && { gte: fechaInicioDate }),
         ...(fechaFinDate && { lte: fechaFinDate }),
@@ -142,6 +156,11 @@ export async function GET(request: Request) {
         const endOfLastMonth = new Date(Date.UTC(sy, sm, 0, 23, 59, 59, 999) + santiagoOffsetMs);
 
         const completadosDateFilter = hasDateFilter ? servicioDateWhere : undefined;
+        const servicioFiltroNoConformidades = {
+            ...(hasDateFilter && { fechaAsignacion: servicioDateWhere }),
+            ...servicioEmpresaWhere,
+        };
+        const hasServicioFiltroNoConformidades = Object.keys(servicioFiltroNoConformidades).length > 0;
 
         // Ejecutar las queries en lotes para reducir picos de conexiones simultaneas.
         const [
@@ -158,7 +177,12 @@ export async function GET(request: Request) {
             // 1. SERVICIOS POR ESTADO
             prisma.servicio.groupBy({
                 by: ['estado'],
-                ...(hasDateFilter && { where: { createdAt: servicioDateWhere } }),
+                ...(hasServicioFilter && {
+                    where: {
+                        ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                        ...servicioEmpresaWhere,
+                    },
+                }),
                 _count: true,
             }),
             // 2. COMPLETADOS HOY
@@ -167,6 +191,7 @@ export async function GET(request: Request) {
                     estado: 'COMPLETADO',
                     fechaFinalizacion: { gte: startOfToday },
                     ...(completadosDateFilter && { createdAt: completadosDateFilter }),
+                    ...servicioEmpresaWhere,
                 },
             }),
             // 2b. COMPLETADOS SEMANA
@@ -175,6 +200,7 @@ export async function GET(request: Request) {
                     estado: 'COMPLETADO',
                     fechaFinalizacion: { gte: startOfWeek },
                     ...(completadosDateFilter && { createdAt: completadosDateFilter }),
+                    ...servicioEmpresaWhere,
                 },
             }),
             // 2c. COMPLETADOS MES
@@ -183,6 +209,7 @@ export async function GET(request: Request) {
                     estado: 'COMPLETADO',
                     fechaFinalizacion: { gte: startOfMonth },
                     ...(completadosDateFilter && { createdAt: completadosDateFilter }),
+                    ...servicioEmpresaWhere,
                 },
             }),
             // 2d. COMPLETADOS MES ANTERIOR
@@ -191,15 +218,33 @@ export async function GET(request: Request) {
                     estado: 'COMPLETADO',
                     fechaFinalizacion: { gte: startOfLastMonth, lte: endOfLastMonth },
                     ...(completadosDateFilter && { createdAt: completadosDateFilter }),
+                    ...servicioEmpresaWhere,
                 },
             }),
             // 3. ANALISIS DE RIESGO TOTAL
             prisma.analisisRiesgo.count({
-                where: hasDateFilter ? { createdAt: servicioDateWhere } : undefined,
+                where: hasServicioFilter
+                    ? {
+                        ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                        ...(hasEmpresaFilter && {
+                            servicio: {
+                                is: servicioEmpresaWhere,
+                            },
+                        }),
+                    }
+                    : undefined,
             }),
             // 3b. RIESGOS CONTROLADOS
             prisma.analisisRiesgo.count({
-                where: { riesgosControlados: true, ...(hasDateFilter && { createdAt: servicioDateWhere }) },
+                where: {
+                    riesgosControlados: true,
+                    ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                    ...(hasEmpresaFilter && {
+                        servicio: {
+                            is: servicioEmpresaWhere,
+                        },
+                    }),
+                },
             }),
             // 4. CHECKLIST EQUIPO PARA KPI CONDICIONES
             prisma.checklistEquipo.findMany({
@@ -208,6 +253,7 @@ export async function GET(request: Request) {
                         is: {
                             estado: { in: ESTADOS_KPI_CHECKLIST },
                             ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                            ...servicioEmpresaWhere,
                         },
                     },
                 },
@@ -222,6 +268,7 @@ export async function GET(request: Request) {
                         is: {
                             estado: { in: ESTADOS_KPI_CHECKLIST },
                             ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                            ...servicioEmpresaWhere,
                         },
                     },
                 },
@@ -247,6 +294,11 @@ export async function GET(request: Request) {
                 where: {
                     completado: true,
                     ...(hasChecklistDateFilter && { fecha: checklistFechaWhere }),
+                    ...(hasEmpresaFilter && {
+                        servicio: {
+                            is: servicioEmpresaWhere,
+                        },
+                    }),
                 },
             }),
             // 5b. CONDUCTORES NO APTOS
@@ -255,6 +307,11 @@ export async function GET(request: Request) {
                     completado: true,
                     aptoParaTrabajar: false,
                     ...(hasChecklistDateFilter && { fecha: checklistFechaWhere }),
+                    ...(hasEmpresaFilter && {
+                        servicio: {
+                            is: servicioEmpresaWhere,
+                        },
+                    }),
                 },
             }),
             // 5c. CONDUCTORES CON REEMPLAZO
@@ -263,6 +320,11 @@ export async function GET(request: Request) {
                     completado: true,
                     requiereReemplazo: true,
                     ...(hasChecklistDateFilter && { fecha: checklistFechaWhere }),
+                    ...(hasEmpresaFilter && {
+                        servicio: {
+                            is: servicioEmpresaWhere,
+                        },
+                    }),
                 },
             }),
             // 6. APROBACIONES TOTAL (solo decisiones de supervisor sobre checklist fatiga)
@@ -275,6 +337,7 @@ export async function GET(request: Request) {
                                 isNot: null,
                             },
                             ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                            ...servicioEmpresaWhere,
                         },
                     },
                 },
@@ -291,6 +354,7 @@ export async function GET(request: Request) {
                                 },
                             },
                             ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                            ...servicioEmpresaWhere,
                         },
                     },
                 },
@@ -300,6 +364,7 @@ export async function GET(request: Request) {
                 where: {
                     estado: 'COMPLETADO',
                     ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                    ...servicioEmpresaWhere,
                 },
                 select: { fechaAsignacion: true, fechaFinalizacion: true },
             }),
@@ -309,12 +374,20 @@ export async function GET(request: Request) {
                     estado: { in: ['APROBADO', 'EN_EJECUCION', 'COMPLETADO'] },
                     aprobacion: { isNot: null },
                     ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                    ...servicioEmpresaWhere,
                 },
                 include: { aprobacion: true },
             }),
             // 9. OPERARIOS PRODUCTIVOS (top 5)
             prisma.user.findMany({
-                where: { rol: 'operario', serviciosAsignados: { some: {} } },
+                where: {
+                    rol: 'operario',
+                    serviciosAsignados: {
+                        some: {
+                            ...servicioEmpresaWhere,
+                        },
+                    },
+                },
                 select: {
                     id: true,
                     name: true,
@@ -325,6 +398,7 @@ export async function GET(request: Request) {
                                 where: {
                                     estado: 'COMPLETADO',
                                     ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                                    ...servicioEmpresaWhere,
                                 },
                             },
                         },
@@ -340,6 +414,7 @@ export async function GET(request: Request) {
                         is: {
                             estado: 'COMPLETADO',
                             ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                            ...servicioEmpresaWhere,
                         },
                     },
                 },
@@ -364,6 +439,7 @@ export async function GET(request: Request) {
                     estado: 'RECHAZADO',
                     motivoRechazo: { not: null },
                     ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                    ...servicioEmpresaWhere,
                 },
             }),
             // 13. SERVICIOS EN ATENCION
@@ -376,6 +452,7 @@ export async function GET(request: Request) {
                         { analisisRiesgo: { riesgosControlados: false } },
                     ],
                     ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                    ...servicioEmpresaWhere,
                 },
             }),
             // 15. TOTAL ASIGNADOS (excluye PENDIENTE y CANCELADO)
@@ -383,6 +460,7 @@ export async function GET(request: Request) {
                 where: {
                     estado: { notIn: ['PENDIENTE', 'CANCELADO'] },
                     ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                    ...servicioEmpresaWhere,
                 },
             }),
             // 15b. SERVICIOS ACEPTADOS
@@ -390,6 +468,7 @@ export async function GET(request: Request) {
                 where: {
                     estado: { in: ['ACEPTADO', 'EN_CHECKLIST', 'PENDIENTE_APROBACION', 'APROBADO', 'EN_EJECUCION', 'COMPLETADO'] },
                     ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                    ...servicioEmpresaWhere,
                 },
             }),
             // 15c. SERVICIOS EN ESPERA (ASIGNADO, aún sin respuesta del operario)
@@ -397,13 +476,16 @@ export async function GET(request: Request) {
                 where: {
                     estado: 'ASIGNADO',
                     ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                    ...servicioEmpresaWhere,
                 },
             }),
             // 16. NO CONFORMIDADES ABIERTAS (fechaDetectada = servicio.fechaAsignacion)
             prisma.noConformidad.findMany({
                 where: {
                     estado: 'ABIERTA',
-                    ...(hasDateFilter && { servicio: { fechaAsignacion: servicioDateWhere } }),
+                    ...(hasServicioFiltroNoConformidades && {
+                        servicio: servicioFiltroNoConformidades,
+                    }),
                 },
                 select: {
                     checklistTipo: true,
@@ -437,6 +519,7 @@ export async function GET(request: Request) {
                         some: {
                             estado: { in: ['PENDIENTE_APROBACION', 'APROBADO', 'EN_EJECUCION', 'COMPLETADO'] },
                             ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                            ...servicioEmpresaWhere,
                         },
                     },
                 },
@@ -448,6 +531,7 @@ export async function GET(request: Request) {
                         where: {
                             estado: { in: ['PENDIENTE_APROBACION', 'APROBADO', 'EN_EJECUCION', 'COMPLETADO'] },
                             ...(hasDateFilter && { createdAt: servicioDateWhere }),
+                            ...servicioEmpresaWhere,
                         },
                         include: {
                             checklistEquipo: true,
@@ -537,6 +621,7 @@ export async function GET(request: Request) {
                         where: {
                             estado: 'COMPLETADO',
                             fechaFinalizacion: { gte: dia, lt: new Date(dia.getTime() + msPerDay) },
+                            ...servicioEmpresaWhere,
                         },
                     })
                 ));

@@ -26,6 +26,12 @@ export default async function SupervisorDetalleServicioPage({
     const servicio = await prisma.servicio.findUnique({
         where: { id: parseInt(id) },
         include: {
+            empresa: {
+                select: {
+                    id: true,
+                    nombre: true,
+                },
+            },
             operario: {
                 select: {
                     id: true,
@@ -136,6 +142,12 @@ export default async function SupervisorDetalleServicioPage({
                                     <dt className="text-sm font-medium text-gray-500">Ruta</dt>
                                     <dd className="mt-1 text-sm text-gray-900">
                                         {servicio.origen} → {servicio.destino}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-sm font-medium text-gray-500">Servicio para</dt>
+                                    <dd className="mt-1 text-sm text-gray-900">
+                                        {servicio.empresa?.nombre ?? 'Sin empresa'}
                                     </dd>
                                 </div>
                                 {servicio.observaciones && (

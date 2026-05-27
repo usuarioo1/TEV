@@ -17,7 +17,19 @@ export async function GET(
 
         const creadoPorSelect = { name: true, username: true, rol: true };
         const responsableSelect = { name: true, username: true };
-        const caminataSelect = { id: true, codigo: true, zona: true, faena: true, estado: true };
+        const caminataSelect = {
+            id: true,
+            codigo: true,
+            zona: true,
+            faena: true,
+            estado: true,
+            empresa: {
+                select: {
+                    id: true,
+                    nombre: true,
+                },
+            },
+        };
 
         let alerta: any = null;
 

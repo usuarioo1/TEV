@@ -19,6 +19,11 @@ export default async function ChecklistsPage({
     const servicio = await prisma.servicio.findUnique({
         where: { id: parseInt(id) },
         include: {
+            empresa: {
+                select: {
+                    nombre: true,
+                },
+            },
             checklistEquipo: true,
             checklistTractoCamion: true,
             checklistFatiga: true,
@@ -67,6 +72,8 @@ export default async function ChecklistsPage({
             servicio.checklistEquipo?.items as Record<string, Record<string, unknown>>,
         );
 
+    const empresaServicio = servicio.empresa?.nombre ?? 'Sin empresa';
+
     // Al menos uno de los checklists de vehículo debe estar completo (rampla o tracto)
     const checklistVehiculoCompleto = checklistEquipoCompleto || checklistTractoCamionCompleto;
 
@@ -89,6 +96,10 @@ export default async function ChecklistsPage({
                     <div className="mt-2">
                         <span className="text-sm text-gray-500">Servicio: </span>
                         <span className="text-sm font-medium text-gray-900">{servicio.codigo}</span>
+                    </div>
+                    <div className="mt-1">
+                        <span className="text-sm text-gray-500">Servicio para: </span>
+                        <span className="text-sm font-medium text-gray-900">{servicio.empresa?.nombre ?? 'Sin empresa'}</span>
                     </div>
                 </div>
 
@@ -126,6 +137,9 @@ export default async function ChecklistsPage({
                                 </h3>
                                 <p className="text-sm text-gray-600 mt-1">
                                     Evaluación del estado del operario
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Servicio para: <span className="font-medium text-gray-700">{empresaServicio}</span>
                                 </p>
                             </div>
                             {checklistFatigaCompleto && (
@@ -169,6 +183,9 @@ export default async function ChecklistsPage({
                                 <p className="text-sm text-gray-600 mt-1">
                                     Inspección tracto camión
                                 </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Servicio para: <span className="font-medium text-gray-700">{empresaServicio}</span>
+                                </p>
                             </div>
                             {checklistTractoCamionCompleto && (
                                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${tractoCriticoNo ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
@@ -211,6 +228,9 @@ export default async function ChecklistsPage({
                                 <p className="text-sm text-gray-600 mt-1">
                                     Inspección equipos de transporte
                                 </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Servicio para: <span className="font-medium text-gray-700">{empresaServicio}</span>
+                                </p>
                             </div>
                             {checklistEquipoCompleto && (
                                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${equipoCriticoNo ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
@@ -252,6 +272,9 @@ export default async function ChecklistsPage({
                                 </h3>
                                 <p className="text-sm text-gray-600 mt-1">
                                     Identificación de riesgos y medidas de control
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Servicio para: <span className="font-medium text-gray-700">{empresaServicio}</span>
                                 </p>
                             </div>
                             {analisisRiesgoCompleto && (

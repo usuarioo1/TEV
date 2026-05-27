@@ -23,6 +23,7 @@ interface ServicioCardProps {
         checklistTractoCamion?: { completado?: boolean | null } | null;
         checklistFatiga?: { completado?: boolean | null } | null;
         analisisRiesgo?: { completado?: boolean | null } | null;
+        empresa?: { id?: number; nombre?: string | null } | null;
         operario?: { name?: string | null; username?: string | null } | null;
         coordinador?: { name?: string | null; username?: string | null } | null;
     };
@@ -34,6 +35,7 @@ export default function ServicioCard({ servicio }: ServicioCardProps) {
     const { session } = useSession();
     const userRole = session?.rol ?? '';
     const userId = session?.id ?? null;
+    const empresaLabel = userRole === 'operario' ? 'Servicio para' : 'Empresa';
     const estadoVisual = servicio.requiereReenvio
         ? ESTADO_VISUAL_VOLVER_A_ENVIAR
         : servicio.estado;
@@ -110,21 +112,36 @@ export default function ServicioCard({ servicio }: ServicioCardProps) {
 
     // Determinar si mostrar botón de editar
     const puedeEditar = () => {
-        // Estados editables
-        const estadosEditables = ['PENDIENTE', 'ASIGNADO'];
-        if (!estadosEditables.includes(servicio.estado)) return false;
+        const estadosEdicionCompleta = ['PENDIENTE', 'ASIGNADO'];
+        const estadosEdicionEmpresaPostAceptacion = [
+            'ACEPTADO',
+            'EN_CHECKLIST',
+            'PENDIENTE_APROBACION',
+            'APROBADO',
+            'EN_EJECUCION',
+            'COMPLETADO',
+        ];
 
         // Solo coordinadores y jefaturas pueden editar
         if (userRole !== 'coordinador' && userRole !== 'jefaturas') return false;
 
-        // Jefaturas pueden editar cualquier servicio
-        if (userRole === 'jefaturas') return true;
+        // Jefaturas solo pueden editar en estados iniciales
+        if (userRole === 'jefaturas') {
+            return estadosEdicionCompleta.includes(servicio.estado);
+        }
 
-        // Coordinadores solo pueden editar sus propios servicios
-        return servicio.coordinadorId === userId;
+        // Coordinadores solo pueden editar sus propios servicios.
+        if (servicio.coordinadorId !== userId) return false;
+
+        return (
+            estadosEdicionCompleta.includes(servicio.estado)
+            || estadosEdicionEmpresaPostAceptacion.includes(servicio.estado)
+        );
     };
 
     const mostrarBotonEditar = puedeEditar();
+    const estadosEdicionCompleta = ['PENDIENTE', 'ASIGNADO'];
+    const edicionSoloEmpresa = mostrarBotonEditar && !estadosEdicionCompleta.includes(servicio.estado);
 
     return (
         <div className="bg-white shadow rounded-lg overflow-hidden hover:shadow-md transition-shadow">
@@ -254,7 +271,7 @@ export default function ServicioCard({ servicio }: ServicioCardProps) {
                             Detalles
                         </Link>
                     )}
-                    {/* Botón de Editar - Solo visible para coordinadores y jefaturas en estados editables */}
+                    {/* Botón de Editar */}
                     {mostrarBotonEditar && (
                         <Link
                             href={`/servicios/${servicio.id}/editar`}
@@ -263,13 +280,18 @@ export default function ServicioCard({ servicio }: ServicioCardProps) {
                             <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                            Editar
+                            {edicionSoloEmpresa ? 'Editar Empresa' : 'Editar'}
                         </Link>
                     )}
                 </div>
 
                 {/* Coordinator & Operario Info */}
                 <div className="mt-4 pt-4 border-t border-gray-200 space-y-1">
+                    {servicio.empresa?.nombre && (
+                        <p className="text-xs text-gray-500">
+                            {empresaLabel}: <span className="font-medium text-gray-700">{servicio.empresa.nombre}</span>
+                        </p>
+                    )}
                     {servicio.operario && (
                         <p className="text-xs text-gray-500">
                             Operario: <span className="font-medium text-gray-700">{servicio.operario?.name || servicio.operario?.username}</span>

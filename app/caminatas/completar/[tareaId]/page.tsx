@@ -19,6 +19,11 @@ interface TareaAsignada {
     creadoPor: { id: number; name: string | null; username: string; rol: string };
 }
 
+interface Empresa {
+    id: number;
+    nombre: string;
+}
+
 const TIPO_LABELS: Record<string, string> = {
     caminata: 'Caminata de Seguridad',
     reporte_peligro: 'Reporte de Peligro',
@@ -43,9 +48,13 @@ export default function CompletarTareaPage() {
     const [error, setError] = useState<string | null>(null);
     const [completed, setCompleted] = useState(false);
     const [startingCaminata, setStartingCaminata] = useState(false);
+    const [empresas, setEmpresas] = useState<Empresa[]>([]);
+    const [empresaId, setEmpresaId] = useState('');
 
     useEffect(() => {
-        if (tareaId) fetchTarea();
+        if (!tareaId) return;
+        fetchTarea();
+        fetchEmpresas();
     }, [tareaId]);
 
     const fetchTarea = async () => {
@@ -65,6 +74,20 @@ export default function CompletarTareaPage() {
             setError(err.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchEmpresas = async () => {
+        try {
+            const response = await fetch('/api/empresas');
+            if (!response.ok) {
+                throw new Error('No se pudo cargar la lista de empresas');
+            }
+
+            const data = await response.json();
+            setEmpresas(Array.isArray(data) ? data : []);
+        } catch (err: any) {
+            setError(err.message || 'Error al cargar empresas');
         }
     };
 
@@ -90,8 +113,17 @@ export default function CompletarTareaPage() {
         setError(null);
 
         try {
+            const empresaIdParsed = Number.parseInt(empresaId, 10);
+            if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+                throw new Error('Debes seleccionar una empresa para iniciar la caminata');
+            }
+
             const response = await fetch(`/api/tareas-asignadas/${tareaId}`, {
                 method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ empresaId: empresaIdParsed }),
             });
 
             const data = await response.json();
@@ -228,13 +260,35 @@ export default function CompletarTareaPage() {
                     <div className="bg-white rounded-lg shadow p-6 border border-purple-100">
                         <h2 className="text-xl font-semibold text-gray-900 mb-2">Iniciar Caminata</h2>
                         <p className="text-sm text-gray-600 mb-4">
-                            Al iniciar esta actividad se creará la caminata y se abrirá su detalle para completar zona, faena, actividad y acompañante.
+                            Al iniciar esta actividad se creará la caminata y se abrirá su detalle para completar zona, faena, actividad, empresa y acompañante.
                         </p>
+                        <div className="mb-4">
+                            <label htmlFor="empresa-caminata" className="block text-sm font-medium text-gray-700 mb-2">
+                                Empresa *
+                            </label>
+                            <select
+                                id="empresa-caminata"
+                                value={empresaId}
+                                onChange={(e) => setEmpresaId(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                required
+                            >
+                                <option value="">Seleccionar empresa...</option>
+                                {empresas.map((empresa) => (
+                                    <option key={empresa.id} value={empresa.id.toString()}>
+                                        {empresa.nombre}
+                                    </option>
+                                ))}
+                            </select>
+                            {empresas.length === 0 && (
+                                <p className="mt-2 text-xs text-amber-600">No hay empresas disponibles. Solicita crear una empresa antes de iniciar.</p>
+                            )}
+                        </div>
                         <div className="flex gap-3">
                             <button
                                 type="button"
                                 onClick={handleStartCaminata}
-                                disabled={startingCaminata}
+                                disabled={startingCaminata || !empresaId}
                                 className="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 transition-colors"
                             >
                                 {startingCaminata ? 'Creando caminata...' : 'Crear y Abrir Caminata'}

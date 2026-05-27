@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import EstadosServiciosGrid from '@/components/dashboard/EstadosServiciosGrid';
 import OperacionesServiciosCard from '@/components/dashboard/OperacionesServiciosCard';
 import ServiciosPorEstadoPieChart from '@/components/dashboard/ServiciosPorEstadoPieChart';
@@ -41,15 +42,73 @@ import type {
 
 export const dynamic = 'force-dynamic';
 
+interface EmpresaOption {
+    id: number;
+    nombre: string;
+}
+
+const ESTADOS_OPERACIONES_VALIDOS = new Set([
+    'TODOS',
+    'ASIGNADO',
+    'ACEPTADO',
+    'RECHAZADO',
+    'PENDIENTE_APROBACION',
+    'APROBADO',
+    'EN_EJECUCION',
+    'COMPLETADO',
+]);
+
+function normalizarEmpresaIdQuery(value: string | null): string {
+    if (!value) return '';
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? String(parsed) : '';
+}
+
+function normalizarEstadoQuery(value: string | null): string {
+    if (!value) return 'TODOS';
+    return ESTADOS_OPERACIONES_VALIDOS.has(value) ? value : 'TODOS';
+}
+
+function buildOperacionesQueryString({
+    fechaDesde,
+    fechaHasta,
+    empresaId,
+    estado,
+}: {
+    fechaDesde: string;
+    fechaHasta: string;
+    empresaId: string;
+    estado: string;
+}) {
+    const params = new URLSearchParams();
+    if (fechaDesde) params.set('fechaDesde', fechaDesde);
+    if (fechaHasta) params.set('fechaHasta', fechaHasta);
+    if (empresaId) params.set('empresaId', empresaId);
+    if (estado && estado !== 'TODOS') params.set('estado', estado);
+    return params.toString();
+}
+
 export default function OperacionesPage() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
+    const fechaDesdeQuery = searchParams.get('fechaDesde') || '';
+    const fechaHastaQuery = searchParams.get('fechaHasta') || '';
+    const empresaIdQuery = normalizarEmpresaIdQuery(searchParams.get('empresaId'));
+    const estadoFiltroQuery = normalizarEstadoQuery(searchParams.get('estado'));
+
     const [metrics, setMetrics] = useState<OperacionesMetrics | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const [fechaDesde, setFechaDesde] = useState('');
-    const [fechaHasta, setFechaHasta] = useState('');
-    const [filtroFecha, setFiltroFecha] = useState({ desde: '', hasta: '' });
-    const [estadoFiltroOperaciones, setEstadoFiltroOperaciones] = useState('TODOS');
+    const [fechaDesde, setFechaDesde] = useState(fechaDesdeQuery);
+    const [fechaHasta, setFechaHasta] = useState(fechaHastaQuery);
+    const [empresaId, setEmpresaId] = useState(empresaIdQuery);
+    const [filtroFecha, setFiltroFecha] = useState({ desde: fechaDesdeQuery, hasta: fechaHastaQuery });
+    const [filtroEmpresaId, setFiltroEmpresaId] = useState(empresaIdQuery);
+    const [empresas, setEmpresas] = useState<EmpresaOption[]>([]);
+    const [estadoFiltroOperaciones, setEstadoFiltroOperaciones] = useState(estadoFiltroQuery);
     const [exportandoExcelOperaciones, setExportandoExcelOperaciones] = useState(false);
 
     const [modalNCAbierto, setModalNCAbierto] = useState(false);
@@ -81,11 +140,77 @@ export default function OperacionesPage() {
     const [modalConductoresAptosChecklists, setModalConductoresAptosChecklists] = useState<ChecklistFatigaResumen[]>([]);
     const [modalConductoresAptosResumen, setModalConductoresAptosResumen] = useState({ total: 0, aptos: 0, noAptos: 0, conReemplazo: 0 });
 
+    const actualizarUrlFiltros = useCallback(({
+        nextFechaDesde,
+        nextFechaHasta,
+        nextEmpresaId,
+        nextEstado,
+    }: {
+        nextFechaDesde: string;
+        nextFechaHasta: string;
+        nextEmpresaId: string;
+        nextEstado: string;
+    }) => {
+        const query = buildOperacionesQueryString({
+            fechaDesde: nextFechaDesde,
+            fechaHasta: nextFechaHasta,
+            empresaId: nextEmpresaId,
+            estado: nextEstado,
+        });
+
+        const href = query ? `${pathname}?${query}` : pathname;
+        router.replace(href, { scroll: false });
+    }, [pathname, router]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(searchParams.toString());
+        const nextFechaDesde = params.get('fechaDesde') || '';
+        const nextFechaHasta = params.get('fechaHasta') || '';
+        const nextEmpresaId = normalizarEmpresaIdQuery(params.get('empresaId'));
+        const nextEstado = normalizarEstadoQuery(params.get('estado'));
+
+        setFechaDesde((prev) => (prev === nextFechaDesde ? prev : nextFechaDesde));
+        setFechaHasta((prev) => (prev === nextFechaHasta ? prev : nextFechaHasta));
+        setEmpresaId((prev) => (prev === nextEmpresaId ? prev : nextEmpresaId));
+        setFiltroFecha((prev) => (
+            prev.desde === nextFechaDesde && prev.hasta === nextFechaHasta
+                ? prev
+                : { desde: nextFechaDesde, hasta: nextFechaHasta }
+        ));
+        setFiltroEmpresaId((prev) => (prev === nextEmpresaId ? prev : nextEmpresaId));
+        setEstadoFiltroOperaciones((prev) => (prev === nextEstado ? prev : nextEstado));
+    }, [searchParams]);
+
+    const fetchEmpresas = useCallback(async () => {
+        try {
+            const response = await fetch('/api/empresas');
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}`);
+            }
+
+            const payload = await response.json();
+            const empresasNormalizadas = Array.isArray(payload)
+                ? payload
+                    .map((empresa) => ({
+                        id: Number(empresa?.id),
+                        nombre: typeof empresa?.nombre === 'string' ? empresa.nombre : '',
+                    }))
+                    .filter((empresa) => Number.isInteger(empresa.id) && empresa.id > 0 && empresa.nombre.length > 0)
+                : [];
+
+            setEmpresas(empresasNormalizadas);
+        } catch (err) {
+            console.error('Error cargando empresas para filtros:', err);
+            setEmpresas([]);
+        }
+    }, []);
+
     const fetchMetrics = useCallback(async () => {
         try {
             const params = new URLSearchParams();
             if (filtroFecha.desde) params.set('fechaInicio', filtroFecha.desde);
             if (filtroFecha.hasta) params.set('fechaFin', filtroFecha.hasta);
+            if (filtroEmpresaId) params.set('empresaId', filtroEmpresaId);
 
             const url = params.toString()
                 ? `/api/dashboard/metrics?${params}`
@@ -108,7 +233,11 @@ export default function OperacionesPage() {
         } finally {
             setLoading(false);
         }
-    }, [filtroFecha]);
+    }, [filtroFecha, filtroEmpresaId]);
+
+    useEffect(() => {
+        void fetchEmpresas();
+    }, [fetchEmpresas]);
 
     useEffect(() => {
         fetchMetrics();
@@ -117,16 +246,46 @@ export default function OperacionesPage() {
     }, [fetchMetrics]);
 
     const handleAplicarFiltro = () => {
+        const fechaFiltro = { desde: fechaDesde, hasta: fechaHasta };
         setLoading(true);
-        setFiltroFecha({ desde: fechaDesde, hasta: fechaHasta });
+        setFiltroFecha(fechaFiltro);
+        setFiltroEmpresaId(empresaId);
+
+        actualizarUrlFiltros({
+            nextFechaDesde: fechaFiltro.desde,
+            nextFechaHasta: fechaFiltro.hasta,
+            nextEmpresaId: empresaId,
+            nextEstado: estadoFiltroOperaciones,
+        });
     };
 
     const handleLimpiarFiltro = () => {
         setFechaDesde('');
         setFechaHasta('');
+        setEmpresaId('');
         setLoading(true);
         setFiltroFecha({ desde: '', hasta: '' });
+        setFiltroEmpresaId('');
+
+        actualizarUrlFiltros({
+            nextFechaDesde: '',
+            nextFechaHasta: '',
+            nextEmpresaId: '',
+            nextEstado: estadoFiltroOperaciones,
+        });
     };
+
+    const handleEstadoFiltroOperacionesChange = useCallback((nuevoEstado: string) => {
+        const estadoNormalizado = normalizarEstadoQuery(nuevoEstado);
+        setEstadoFiltroOperaciones(estadoNormalizado);
+
+        actualizarUrlFiltros({
+            nextFechaDesde: filtroFecha.desde,
+            nextFechaHasta: filtroFecha.hasta,
+            nextEmpresaId: filtroEmpresaId,
+            nextEstado: estadoNormalizado,
+        });
+    }, [actualizarUrlFiltros, filtroFecha.desde, filtroFecha.hasta, filtroEmpresaId]);
 
     const handleExportarOperacionesExcel = useCallback(async () => {
         setExportandoExcelOperaciones(true);
@@ -135,6 +294,7 @@ export default function OperacionesPage() {
             const params = new URLSearchParams();
             if (filtroFecha.desde) params.set('fechaDesde', filtroFecha.desde);
             if (filtroFecha.hasta) params.set('fechaHasta', filtroFecha.hasta);
+            if (filtroEmpresaId) params.set('empresaId', filtroEmpresaId);
             if (estadoFiltroOperaciones) params.set('estado', estadoFiltroOperaciones);
 
             const url = params.toString()
@@ -170,10 +330,15 @@ export default function OperacionesPage() {
             worksheet['!cols'] = OPERACIONES_EXCEL_COLS;
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Operaciones');
 
+            const empresaSeleccionada = filtroEmpresaId
+                ? empresas.find((empresa) => String(empresa.id) === filtroEmpresaId)
+                : null;
+
             const filename = buildOperacionesExcelFilename({
                 fechaDesde: filtroFecha.desde,
                 fechaHasta: filtroFecha.hasta,
                 estadoFiltro: estadoFiltroOperaciones,
+                empresaNombre: empresaSeleccionada?.nombre,
             });
 
             XLSX.writeFile(workbook, filename);
@@ -183,7 +348,7 @@ export default function OperacionesPage() {
         } finally {
             setExportandoExcelOperaciones(false);
         }
-    }, [filtroFecha.desde, filtroFecha.hasta, estadoFiltroOperaciones]);
+    }, [filtroFecha.desde, filtroFecha.hasta, filtroEmpresaId, estadoFiltroOperaciones, empresas]);
 
     const abrirModalNoConformidades = async (tipo: TipoNoConformidad) => {
         setModalNCAbierto(true);
@@ -202,6 +367,7 @@ export default function OperacionesPage() {
             params.set('tipo', tipo);
             if (filtroFecha.desde) params.set('fechaInicio', filtroFecha.desde);
             if (filtroFecha.hasta) params.set('fechaFin', filtroFecha.hasta);
+            if (filtroEmpresaId) params.set('empresaId', filtroEmpresaId);
 
             const response = await fetch(`/api/dashboard/no-conformidades/servicios?${params.toString()}`);
             if (!response.ok) {
@@ -235,6 +401,7 @@ export default function OperacionesPage() {
             const params = new URLSearchParams();
             if (filtroFecha.desde) params.set('fechaDesde', filtroFecha.desde);
             if (filtroFecha.hasta) params.set('fechaHasta', filtroFecha.hasta);
+            if (filtroEmpresaId) params.set('empresaId', filtroEmpresaId);
 
             const response = await fetch(`/api/servicios/todos?${params.toString()}`);
             if (!response.ok) {
@@ -269,6 +436,7 @@ export default function OperacionesPage() {
             const params = new URLSearchParams();
             if (filtroFecha.desde) params.set('fechaInicio', filtroFecha.desde);
             if (filtroFecha.hasta) params.set('fechaFin', filtroFecha.hasta);
+            if (filtroEmpresaId) params.set('empresaId', filtroEmpresaId);
 
             const url = params.toString()
                 ? `/api/dashboard/aprobaciones/servicios?${params.toString()}`
@@ -312,6 +480,7 @@ export default function OperacionesPage() {
             const params = new URLSearchParams();
             if (filtroFecha.desde) params.set('fechaInicio', filtroFecha.desde);
             if (filtroFecha.hasta) params.set('fechaFin', filtroFecha.hasta);
+            if (filtroEmpresaId) params.set('empresaId', filtroEmpresaId);
 
             const url = params.toString()
                 ? `/api/dashboard/operarios/rechazos/servicios?${params.toString()}`
@@ -351,6 +520,7 @@ export default function OperacionesPage() {
             const params = new URLSearchParams();
             if (filtroFecha.desde) params.set('fechaInicio', filtroFecha.desde);
             if (filtroFecha.hasta) params.set('fechaFin', filtroFecha.hasta);
+            if (filtroEmpresaId) params.set('empresaId', filtroEmpresaId);
 
             const url = params.toString()
                 ? `/api/dashboard/conductores-aptos/checklists?${params.toString()}`
@@ -394,9 +564,13 @@ export default function OperacionesPage() {
                 <OperacionesFechaFiltro
                     fechaDesde={fechaDesde}
                     fechaHasta={fechaHasta}
+                    empresaId={empresaId}
                     filtroFecha={filtroFecha}
+                    filtroEmpresaId={filtroEmpresaId}
+                    empresas={empresas}
                     onFechaDesdeChange={setFechaDesde}
                     onFechaHastaChange={setFechaHasta}
+                    onEmpresaIdChange={setEmpresaId}
                     onAplicarFiltro={handleAplicarFiltro}
                     onLimpiarFiltro={handleLimpiarFiltro}
                 />
@@ -486,8 +660,16 @@ export default function OperacionesPage() {
                                     sinRespuesta={metrics.aceptacionOperarios.sinRespuesta}
                                     onChartClick={abrirModalRechazosOperario}
                                 />
-                                <KPINoConformidades fechaDesde={filtroFecha.desde} fechaHasta={filtroFecha.hasta} />
-                                <KPIHallazgos fechaDesde={filtroFecha.desde} fechaHasta={filtroFecha.hasta} />
+                                <KPINoConformidades
+                                    fechaDesde={filtroFecha.desde}
+                                    fechaHasta={filtroFecha.hasta}
+                                    empresaId={filtroEmpresaId}
+                                />
+                                <KPIHallazgos
+                                    fechaDesde={filtroFecha.desde}
+                                    fechaHasta={filtroFecha.hasta}
+                                    empresaId={filtroEmpresaId}
+                                />
                             </div>
                         </div>
 
@@ -501,8 +683,9 @@ export default function OperacionesPage() {
                             <OperacionesServiciosCard
                                 fechaDesde={filtroFecha.desde}
                                 fechaHasta={filtroFecha.hasta}
+                                empresaId={filtroEmpresaId}
                                 estadoFiltro={estadoFiltroOperaciones}
-                                onEstadoFiltroChange={setEstadoFiltroOperaciones}
+                                onEstadoFiltroChange={handleEstadoFiltroOperacionesChange}
                             />
                         </div>
                     </>

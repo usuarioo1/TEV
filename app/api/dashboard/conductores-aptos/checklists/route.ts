@@ -21,6 +21,16 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const fechaInicioParam = searchParams.get('fechaInicio');
         const fechaFinParam = searchParams.get('fechaFin');
+        const empresaIdParam = searchParams.get('empresaId');
+
+        let empresaId: number | null = null;
+        if (empresaIdParam) {
+            const parsedEmpresaId = Number(empresaIdParam);
+            if (!Number.isInteger(parsedEmpresaId) || parsedEmpresaId <= 0) {
+                return NextResponse.json({ error: 'empresaId inválido' }, { status: 400 });
+            }
+            empresaId = parsedEmpresaId;
+        }
 
         const checklistDateWhere = buildDateOnlyCompatWhere(fechaInicioParam, fechaFinParam);
         const hasDateFilter = !!(checklistDateWhere.gte || checklistDateWhere.lte);
@@ -29,6 +39,11 @@ export async function GET(request: Request) {
             where: {
                 completado: true,
                 ...(hasDateFilter && { fecha: checklistDateWhere }),
+                ...(empresaId && {
+                    servicio: {
+                        is: { empresaId },
+                    },
+                }),
             },
             select: {
                 id: true,
@@ -40,6 +55,11 @@ export async function GET(request: Request) {
                     select: {
                         id: true,
                         codigo: true,
+                        empresa: {
+                            select: {
+                                nombre: true,
+                            },
+                        },
                         descripcion: true,
                         origen: true,
                         destino: true,
@@ -73,6 +93,7 @@ export async function GET(request: Request) {
             fechaChecklist: checklist.fecha,
             servicioId: checklist.servicio.id,
             servicioCodigo: checklist.servicio.codigo,
+            empresaNombre: checklist.servicio.empresa?.nombre || 'Sin empresa',
             descripcion: checklist.servicio.descripcion,
             origen: checklist.servicio.origen,
             destino: checklist.servicio.destino,

@@ -12,6 +12,7 @@ interface OperacionesResponse {
 interface OperacionesServiciosCardProps {
     fechaDesde?: string;
     fechaHasta?: string;
+    empresaId?: string;
     estadoFiltro?: string;
     onEstadoFiltroChange?: (estado: string) => void;
 }
@@ -19,6 +20,7 @@ interface OperacionesServiciosCardProps {
 export default function OperacionesServiciosCard({
     fechaDesde = '',
     fechaHasta = '',
+    empresaId = '',
     estadoFiltro,
     onEstadoFiltroChange,
 }: OperacionesServiciosCardProps) {
@@ -41,7 +43,7 @@ export default function OperacionesServiciosCard({
 
     useEffect(() => {
         fetchServicios();
-    }, [fechaDesde, fechaHasta, estadoFiltroActual]);
+    }, [fechaDesde, fechaHasta, empresaId, estadoFiltroActual]);
 
     const fetchServicios = async () => {
         setLoading(true);
@@ -49,6 +51,7 @@ export default function OperacionesServiciosCard({
             const params = new URLSearchParams();
             if (fechaDesde) params.append('fechaDesde', fechaDesde);
             if (fechaHasta) params.append('fechaHasta', fechaHasta);
+            if (empresaId) params.append('empresaId', empresaId);
             if (estadoFiltroActual) params.append('estado', estadoFiltroActual);
 
             const response = await fetch(`/api/servicios/todos?${params.toString()}`);
@@ -131,16 +134,23 @@ export default function OperacionesServiciosCard({
                     </div>
                 </div>
 
-                {(fechaDesde || fechaHasta) && (
+                {(fechaDesde || fechaHasta || empresaId) && (
                     <div className="mb-4 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-3 py-2 inline-flex items-center gap-2">
-                        <span className="font-semibold">Rango global activo:</span>
-                        <span>
-                            {fechaDesde && fechaHasta
-                                ? `${fechaDesde} -> ${fechaHasta}`
-                                : fechaDesde
-                                    ? `Desde ${fechaDesde}`
-                                    : `Hasta ${fechaHasta}`}
-                        </span>
+                        <span className="font-semibold">Filtros globales activos:</span>
+                        {(fechaDesde || fechaHasta) && (
+                            <span>
+                                {fechaDesde && fechaHasta
+                                    ? `${fechaDesde} -> ${fechaHasta}`
+                                    : fechaDesde
+                                        ? `Desde ${fechaDesde}`
+                                        : `Hasta ${fechaHasta}`}
+                            </span>
+                        )}
+                        {empresaId && (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">
+                                Empresa seleccionada
+                            </span>
+                        )}
                     </div>
                 )}
             </div>
@@ -171,6 +181,7 @@ export default function OperacionesServiciosCard({
                             <tr>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Empresa</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ruta</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Operario</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
@@ -187,6 +198,9 @@ export default function OperacionesServiciosCard({
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className="text-sm text-gray-900">{servicio.descripcion}</span>
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        <span className="text-sm text-gray-700">{servicio.empresa?.nombre || 'Sin empresa'}</span>
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className="text-sm text-gray-600">

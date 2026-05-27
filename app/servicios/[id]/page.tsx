@@ -9,6 +9,20 @@ import FinalizarServicioButton from '@/components/servicios/FinalizarServicioBut
 export const dynamic = 'force-dynamic';
 
 const EVIDENCIAS_CIERRE_MARKER = 'EVIDENCIAS_FOTOGRAFICAS_CIERRE:';
+const BLOQUE_CIERRE_HEADER = 'ETAPA FINAL Y CIERRE - ANALISIS DE RIESGO';
+
+type EvaluacionTerminoItem = {
+    indice: number;
+    pregunta: string;
+    respuesta: string;
+    observacion?: string;
+};
+
+type CierreServicioResumen = {
+    evaluacion: EvaluacionTerminoItem[];
+    observacionesFinales?: string;
+    observacionesCierre?: string;
+};
 
 function formatChileDate(
     value: string | Date | null | undefined,
@@ -47,6 +61,85 @@ function limpiarBloqueEvidenciasCierre(observaciones?: string | null): string {
         .trim();
 }
 
+function extraerBloqueCierre(observaciones?: string | null): string | null {
+    if (!observaciones || !observaciones.includes(BLOQUE_CIERRE_HEADER)) return null;
+
+    const markerIndex = observaciones.indexOf(BLOQUE_CIERRE_HEADER);
+    return observaciones.slice(markerIndex).trim();
+}
+
+function removerBloqueCierre(observaciones?: string | null): string {
+    if (!observaciones) return '';
+
+    const markerIndex = observaciones.indexOf(BLOQUE_CIERRE_HEADER);
+    if (markerIndex === -1) return observaciones.trim();
+
+    return observaciones.slice(0, markerIndex).trim();
+}
+
+function parsearCierreServicio(observaciones?: string | null): CierreServicioResumen | null {
+    const bloqueCierre = extraerBloqueCierre(observaciones);
+    if (!bloqueCierre) return null;
+
+    const bloqueSinEvidencias = limpiarBloqueEvidenciasCierre(bloqueCierre);
+    const lineas = bloqueSinEvidencias
+        .split(/\r?\n/)
+        .map((linea) => linea.trim())
+        .filter((linea) => linea.length > 0)
+        .filter((linea) => linea !== BLOQUE_CIERRE_HEADER)
+        .filter((linea) => linea !== 'Evaluacion de termino:');
+
+    const evaluacion: EvaluacionTerminoItem[] = [];
+    let actual: EvaluacionTerminoItem | null = null;
+    let observacionesFinales: string | undefined;
+    let observacionesCierre: string | undefined;
+
+    for (const linea of lineas) {
+        const matchPregunta = linea.match(/^(\d+)\.\s*(.+?)\s*->\s*(.+)$/);
+        if (matchPregunta) {
+            if (actual) evaluacion.push(actual);
+
+            actual = {
+                indice: Number(matchPregunta[1]),
+                pregunta: matchPregunta[2].trim(),
+                respuesta: matchPregunta[3].trim(),
+            };
+
+            continue;
+        }
+
+        const matchObservacion = linea.match(/^Observacion:\s*(.+)$/i);
+        if (matchObservacion && actual) {
+            actual.observacion = matchObservacion[1].trim();
+            continue;
+        }
+
+        const matchObservacionesFinales = linea.match(/^Observaciones finales:\s*(.+)$/i);
+        if (matchObservacionesFinales) {
+            observacionesFinales = matchObservacionesFinales[1].trim();
+            continue;
+        }
+
+        const matchObservacionesCierre = linea.match(/^Observaciones de cierre:\s*(.+)$/i);
+        if (matchObservacionesCierre) {
+            observacionesCierre = matchObservacionesCierre[1].trim();
+            continue;
+        }
+    }
+
+    if (actual) evaluacion.push(actual);
+
+    if (!evaluacion.length && !observacionesFinales && !observacionesCierre) {
+        return null;
+    }
+
+    return {
+        evaluacion,
+        observacionesFinales,
+        observacionesCierre,
+    };
+}
+
 export default async function ServicioDetallePage({
     params,
 }: {
@@ -61,6 +154,12 @@ export default async function ServicioDetallePage({
     const servicio = await prisma.servicio.findUnique({
         where: { id: parseInt(id) },
         include: {
+            empresa: {
+                select: {
+                    id: true,
+                    nombre: true,
+                },
+            },
             operario: {
                 select: {
                     id: true,
@@ -102,7 +201,8 @@ export default async function ServicioDetallePage({
         ? Math.floor((new Date().getTime() - new Date(servicio.fechaInicio).getTime()) / 1000 / 60)
         : null;
     const evidenciasCierre = extraerEvidenciasCierre(servicio.observaciones);
-    const observacionesSinEvidencias = limpiarBloqueEvidenciasCierre(servicio.observaciones);
+    const cierreServicio = parsearCierreServicio(servicio.observaciones);
+    const observacionesSinEvidencias = limpiarBloqueEvidenciasCierre(removerBloqueCierre(servicio.observaciones));
 
     return (
         <div className="min-h-screen bg-gray-50 py-8">
@@ -255,6 +355,13 @@ export default async function ServicioDetallePage({
                                 </div>
                             )}
 
+                            {servicio.empresa?.nombre && (
+                                <div className="mb-4">
+                                    <p className="text-xs text-gray-500 mb-2">Empresa</p>
+                                    <p className="text-sm text-gray-700 font-medium">{servicio.empresa.nombre}</p>
+                                </div>
+                            )}
+
                             {/* Fechas */}
                             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
                                 <div>
@@ -289,29 +396,6 @@ export default async function ServicioDetallePage({
                                 </div>
                             )}
 
-                            {evidenciasCierre.length > 0 && (
-                                <div className="mt-4 pt-4 border-t border-gray-200">
-                                    <p className="text-xs text-gray-500 mb-2">Evidencias Fotográficas de Cierre</p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                        {evidenciasCierre.map((url, index) => (
-                                            <a
-                                                key={`${url}-${index}`}
-                                                href={url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="block rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
-                                            >
-                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                <img
-                                                    src={url}
-                                                    alt={`Evidencia de cierre ${index + 1}`}
-                                                    className="w-full h-32 object-cover"
-                                                />
-                                            </a>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
                         {/* Validaciones y Checklists */}
@@ -513,6 +597,101 @@ export default async function ServicioDetallePage({
                                 </div>
                             </div>
                         )}
+
+                        {(cierreServicio || evidenciasCierre.length > 0) && (
+                            <div className="bg-white shadow rounded-lg overflow-hidden">
+                                <div className="bg-slate-900 px-6 py-4">
+                                    <h3 className="text-lg font-semibold text-white">Etapa Final y Cierre</h3>
+                                    <p className="mt-1 text-xs text-slate-300">
+                                        Resumen del análisis de riesgo al cierre del servicio
+                                    </p>
+                                </div>
+
+                                <div className="p-6 space-y-4">
+                                    {cierreServicio?.evaluacion?.length ? (
+                                        <div className="space-y-3">
+                                            {cierreServicio.evaluacion.map((item) => {
+                                                const respuesta = item.respuesta.toUpperCase();
+                                                const respuestaClasses =
+                                                    respuesta === 'SI'
+                                                        ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                                        : respuesta === 'NO'
+                                                            ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                                            : 'bg-gray-100 text-gray-800 border-gray-200';
+
+                                                return (
+                                                    <div key={item.indice} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                                        <p className="text-sm font-medium text-slate-900">
+                                                            {item.indice}. {item.pregunta}
+                                                        </p>
+                                                        <span className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${respuestaClasses}`}>
+                                                            {item.respuesta}
+                                                        </span>
+                                                        {item.observacion && (
+                                                            <p className="mt-2 text-sm text-slate-700">
+                                                                <span className="font-medium text-slate-900">Observación:</span> {item.observacion}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500">No hay evaluación de término registrada.</p>
+                                    )}
+
+                                    {(cierreServicio?.observacionesFinales || cierreServicio?.observacionesCierre) && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                            {cierreServicio.observacionesFinales && (
+                                                <div className="rounded-lg border border-gray-200 bg-white p-4">
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                                                        Observaciones finales
+                                                    </p>
+                                                    <p className="text-sm text-gray-700 whitespace-pre-line">
+                                                        {cierreServicio.observacionesFinales}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {cierreServicio.observacionesCierre && (
+                                                <div className="rounded-lg border border-gray-200 bg-white p-4">
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                                                        Observaciones de cierre
+                                                    </p>
+                                                    <p className="text-sm text-gray-700 whitespace-pre-line">
+                                                        {cierreServicio.observacionesCierre}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {evidenciasCierre.length > 0 && (
+                                        <div className="pt-2">
+                                            <p className="text-sm font-medium text-gray-900 mb-2">Evidencias fotográficas de cierre</p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                {evidenciasCierre.map((url, index) => (
+                                                    <a
+                                                        key={`${url}-${index}`}
+                                                        href={url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="block rounded-lg overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
+                                                    >
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img
+                                                            src={url}
+                                                            alt={`Evidencia de cierre ${index + 1}`}
+                                                            className="w-full h-32 object-cover"
+                                                        />
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Columna Lateral */}
@@ -556,7 +735,7 @@ export default async function ServicioDetallePage({
                             </h3>
                             <div className="space-y-4">
                                 <div className="flex items-start">
-                                    <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <div className="shrink-0 h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
                                         <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                                         </svg>
@@ -576,7 +755,7 @@ export default async function ServicioDetallePage({
 
                                 {servicio.fechaAceptacion && (
                                     <div className="flex items-start">
-                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                                        <div className="shrink-0 h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
                                             <svg className="h-4 w-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                             </svg>
@@ -597,7 +776,7 @@ export default async function ServicioDetallePage({
 
                                 {servicio.aprobacion?.fechaAprobacion && (
                                     <div className="flex items-start">
-                                        <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${servicio.aprobacion.aprobado ? 'bg-purple-100' : 'bg-red-100'}`}>
+                                        <div className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${servicio.aprobacion.aprobado ? 'bg-purple-100' : 'bg-red-100'}`}>
                                             {servicio.aprobacion.aprobado ? (
                                                 <svg className="h-4 w-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -629,7 +808,7 @@ export default async function ServicioDetallePage({
 
                                 {servicio.fechaInicio && (
                                     <div className="flex items-start">
-                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                                        <div className="shrink-0 h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
                                             <svg className="h-4 w-4 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
                                                 <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
                                             </svg>
@@ -650,7 +829,7 @@ export default async function ServicioDetallePage({
 
                                 {servicio.fechaFinalizacion && (
                                     <div className="flex items-start">
-                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-green-500 flex items-center justify-center">
+                                        <div className="shrink-0 h-8 w-8 rounded-full bg-green-500 flex items-center justify-center">
                                             <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                             </svg>

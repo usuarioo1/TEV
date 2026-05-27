@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { getSession } from '@/lib/session';
 import prisma from '@/lib/prisma';
 import CrearServicioForm from '@/components/servicios/CrearServicioForm';
@@ -36,6 +37,16 @@ export default async function NuevoServicioPage() {
         },
     });
 
+    const empresas = await prisma.empresa.findMany({
+        select: {
+            id: true,
+            nombre: true,
+        },
+        orderBy: {
+            nombre: 'asc',
+        },
+    });
+
     console.log('=== Operarios disponibles ===');
     operarios.forEach(op => console.log(`- ${op.username} (ID: ${op.id})`));
 
@@ -44,7 +55,7 @@ export default async function NuevoServicioPage() {
             <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Header */}
                 <div className="mb-8">
-                    <a
+                    <Link
                         href="/servicios"
                         className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
                     >
@@ -52,7 +63,7 @@ export default async function NuevoServicioPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
                         Volver a Servicios
-                    </a>
+                    </Link>
                     <h1 className="text-3xl font-bold text-gray-900">
                         Crear Servicio
                     </h1>
@@ -95,9 +106,18 @@ export default async function NuevoServicioPage() {
                     </div>
                 </div>
 
+                {empresas.length === 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                        <p className="text-sm text-red-700">
+                            No hay empresas creadas. Solicita a jefaturas crear una empresa desde Administración antes de registrar servicios.
+                        </p>
+                    </div>
+                )}
+
                 {/* Formulario */}
                 <CrearServicioForm
                     operarios={operarios}
+                    empresas={empresas}
                 />
             </div>
         </div>

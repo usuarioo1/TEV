@@ -24,6 +24,12 @@ export default async function ServiciosAprobadosPage() {
             },
         },
         include: {
+            empresa: {
+                select: {
+                    id: true,
+                    nombre: true,
+                },
+            },
             operario: {
                 select: {
                     id: true,
@@ -169,6 +175,12 @@ export default async function ServiciosAprobadosPage() {
                                         {servicio.descripcion && (
                                             <p className="text-sm text-gray-600 mb-4">
                                                 {servicio.descripcion}
+                                            </p>
+                                        )}
+
+                                        {servicio.empresa?.nombre && (
+                                            <p className="text-xs text-gray-500 mb-4">
+                                                Servicio para: <span className="font-medium text-gray-700">{servicio.empresa.nombre}</span>
                                             </p>
                                         )}
 

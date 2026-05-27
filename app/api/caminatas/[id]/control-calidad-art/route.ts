@@ -38,12 +38,32 @@ export async function POST(
             return NextResponse.json({ error: 'Caminata no encontrada' }, { status: 404 });
         }
 
+        const empresaIdParsed = Number.parseInt(String(body?.empresaId ?? ''), 10);
+        if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+            return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+        }
+
+        const empresa = await prisma.empresa.findUnique({
+            where: { id: empresaIdParsed },
+            select: { id: true, nombre: true },
+        });
+
+        if (!empresa) {
+            return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+        }
+
+        const datosControlConEmpresa = {
+            ...body,
+            empresaId: empresa.id,
+            empresaNombre: empresa.nombre,
+        };
+
         // Crear control de calidad ART
         const control = await prisma.controlCalidadART.create({
             data: {
                 caminataId,
                 creadoPorId: session.id,
-                datos: body as any, // Guardamos todo el formulario como JSON
+                datos: datosControlConEmpresa as any, // Guardamos todo el formulario como JSON
             },
         });
 

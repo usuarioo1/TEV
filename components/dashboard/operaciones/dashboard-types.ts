@@ -72,6 +72,7 @@ export interface ServicioConNoConformidad {
     servicioId: number;
     servicioCodigo: string;
     servicioEstado: string;
+    empresaNombre: string;
     descripcion: string;
     origen: string;
     destino: string;
@@ -98,6 +99,10 @@ export interface ServicioCompletado {
     descripcion: string;
     origen: string;
     destino: string;
+    empresa?: {
+        id: number;
+        nombre: string;
+    } | null;
     estado: string;
     fechaAsignacion: string;
     fechaFinalizacion: string | null;
@@ -121,6 +126,7 @@ export interface ServicioAprobacionResumen {
     supervisor: string;
     servicioId: number;
     servicioCodigo: string;
+    empresaNombre: string;
     descripcion: string;
     origen: string;
     destino: string;
@@ -146,6 +152,7 @@ export interface ModalAprobacionesResumen {
 export interface ServicioRechazoOperarioResumen {
     servicioId: number;
     servicioCodigo: string;
+    empresaNombre: string;
     descripcion: string;
     origen: string;
     destino: string;
@@ -171,6 +178,7 @@ export interface ChecklistFatigaResumen {
     fechaChecklist: string;
     servicioId: number;
     servicioCodigo: string;
+    empresaNombre: string;
     descripcion: string;
     origen: string;
     destino: string;

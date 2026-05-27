@@ -45,6 +45,16 @@ export async function GET(request: Request) {
         const tipo = searchParams.get('tipo') as TipoNoConformidad | null;
         const fechaInicioParam = searchParams.get('fechaInicio');
         const fechaFinParam = searchParams.get('fechaFin');
+        const empresaIdParam = searchParams.get('empresaId');
+
+        let empresaId: number | null = null;
+        if (empresaIdParam) {
+            const parsedEmpresaId = Number(empresaIdParam);
+            if (!Number.isInteger(parsedEmpresaId) || parsedEmpresaId <= 0) {
+                return NextResponse.json({ error: 'empresaId inválido' }, { status: 400 });
+            }
+            empresaId = parsedEmpresaId;
+        }
 
         if (tipo !== 'equipo' && tipo !== 'tracto') {
             return NextResponse.json({ error: 'Tipo inválido. Usa equipo o tracto.' }, { status: 400 });
@@ -57,6 +67,11 @@ export async function GET(request: Request) {
             ...(fechaInicioDate && { gte: fechaInicioDate }),
             ...(fechaFinDate && { lte: fechaFinDate }),
         };
+        const servicioWhere = {
+            ...(hasDateFilter && { fechaAsignacion: checklistDateWhere }),
+            ...(empresaId && { empresaId }),
+        };
+        const hasServicioFilter = Object.keys(servicioWhere).length > 0;
 
         const checklistTipo = tipo === 'equipo' ? 'SEMIREMOLQUE' : 'TRACTO_CAMION';
 
@@ -64,7 +79,7 @@ export async function GET(request: Request) {
             where: {
                 estado: 'ABIERTA',
                 checklistTipo,
-                ...(hasDateFilter && { servicio: { fechaAsignacion: checklistDateWhere } }),
+                ...(hasServicioFilter && { servicio: servicioWhere }),
             },
             select: {
                 id: true,
@@ -76,6 +91,11 @@ export async function GET(request: Request) {
                     select: {
                         id: true,
                         codigo: true,
+                        empresa: {
+                            select: {
+                                nombre: true,
+                            },
+                        },
                         descripcion: true,
                         estado: true,
                         origen: true,
@@ -121,6 +141,7 @@ export async function GET(request: Request) {
             servicioId: number;
             servicioCodigo: string;
             servicioEstado: string;
+            empresaNombre: string;
             descripcion: string;
             origen: string;
             destino: string;
@@ -150,6 +171,7 @@ export async function GET(request: Request) {
                 servicioId: nc.servicio.id,
                 servicioCodigo: nc.servicio.codigo,
                 servicioEstado: nc.servicio.estado,
+                empresaNombre: nc.servicio.empresa?.nombre || 'Sin empresa',
                 descripcion: nc.servicio.descripcion,
                 origen: nc.servicio.origen,
                 destino: nc.servicio.destino,

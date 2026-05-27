@@ -2,14 +2,11 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { sendServicioAsignadoEmail } from '@/lib/resend';
+import { ROLES } from '@/lib/auth';
 
 // NOTA: Este endpoint es temporal para desarrollo.
-// En producción, la creación de servicios debería:
-// - Estar restringida a roles específicos (coordinadores, jefaturas)
-// - Incluir validaciones más robustas
-// - Integrarse con sistemas de pedidos y logística
-// - Tener workflow de aprobación para la creación
-// - Incluir cálculos de costos, tiempos estimados, etc.
+// Actualmente está restringido a coordinadores y jefaturas.
+// En producción, la creación de servicios debería integrar validaciones y flujos adicionales.
 
 export async function POST(request: Request) {
     try {
@@ -22,13 +19,18 @@ export async function POST(request: Request) {
             );
         }
 
-        // En producción, validar que el usuario tenga permisos para crear servicios
-        // Por ahora permitimos a cualquier usuario autenticado para facilitar las pruebas
+        if (session.rol !== ROLES.COORDINADOR && session.rol !== ROLES.JEFATURAS) {
+            return NextResponse.json(
+                { message: 'No tienes permisos para crear servicios' },
+                { status: 403 }
+            );
+        }
 
         const body = await request.json();
         const {
             codigo,
             descripcion,
+            empresaId,
             origen,
             destino,
             telefonoOrigen,
@@ -41,14 +43,22 @@ export async function POST(request: Request) {
         const coordinadorId = session.id;
 
         console.log('Session ID:', coordinadorId);
-        console.log('Session data:', session);
+        console.log('Session user:', {
+            id: session.id,
+            username: session.username,
+            rol: session.rol,
+        });
 
         // Verificar que el coordinador existe
         const coordinador = await prisma.user.findUnique({
             where: { id: coordinadorId },
         });
 
-        console.log('Coordinador encontrado:', coordinador);
+        console.log('Coordinador encontrado:', coordinador ? {
+            id: coordinador.id,
+            username: coordinador.username,
+            rol: coordinador.rol,
+        } : null);
 
         if (!coordinador) {
             return NextResponse.json(
@@ -68,6 +78,21 @@ export async function POST(request: Request) {
         if (!descripcion || !descripcion.trim()) {
             return NextResponse.json(
                 { message: 'La descripción es requerida' },
+                { status: 400 }
+            );
+        }
+
+        if (empresaId === undefined || empresaId === null) {
+            return NextResponse.json(
+                { message: 'Debes seleccionar una empresa' },
+                { status: 400 }
+            );
+        }
+
+        const empresaIdNumber = Number(empresaId);
+        if (!Number.isInteger(empresaIdNumber) || empresaIdNumber <= 0) {
+            return NextResponse.json(
+                { message: 'La empresa seleccionada es inválida' },
                 { status: 400 }
             );
         }
@@ -111,7 +136,11 @@ export async function POST(request: Request) {
         });
 
         console.log('Operario ID:', operarioId);
-        console.log('Operario encontrado:', operario);
+        console.log('Operario encontrado:', operario ? {
+            id: operario.id,
+            username: operario.username,
+            rol: operario.rol,
+        } : null);
 
         if (!operario) {
             return NextResponse.json(
@@ -127,11 +156,28 @@ export async function POST(request: Request) {
             );
         }
 
+        const empresa = await prisma.empresa.findUnique({
+            where: { id: empresaIdNumber },
+            select: {
+                id: true,
+                nombre: true,
+            },
+        });
+
+        if (!empresa) {
+            return NextResponse.json(
+                { message: 'La empresa seleccionada no existe' },
+                { status: 400 }
+            );
+        }
+
         // Crear el servicio
         const fechaAsignacion = new Date();
         console.log('Intentando crear servicio con datos:', {
             codigo: codigo.trim(),
             descripcion: descripcion.trim(),
+            empresaId: empresaIdNumber,
+            empresaNombre: empresa.nombre,
             origen: origen.trim(),
             destino: destino.trim(),
             telefonoOrigen: telefonoOrigen?.trim() || null,
@@ -147,6 +193,7 @@ export async function POST(request: Request) {
             data: {
                 codigo: codigo.trim(),
                 descripcion: descripcion.trim(),
+                empresaId: empresaIdNumber,
                 origen: origen.trim(),
                 destino: destino.trim(),
                 telefonoOrigen: telefonoOrigen?.trim() || null,
@@ -170,6 +217,12 @@ export async function POST(request: Request) {
                         id: true,
                         username: true,
                         name: true,
+                    },
+                },
+                empresa: {
+                    select: {
+                        id: true,
+                        nombre: true,
                     },
                 },
             },

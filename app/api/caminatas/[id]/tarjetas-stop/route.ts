@@ -38,14 +38,34 @@ export async function POST(
         }
 
         // Extraer el responsableCierre del body
-        const { responsableCierre, ...datosTarjeta } = body;
+        const { responsableCierre, empresaId, ...datosTarjeta } = body;
+
+        const empresaIdParsed = Number.parseInt(String(empresaId ?? ''), 10);
+        if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+            return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+        }
+
+        const empresa = await prisma.empresa.findUnique({
+            where: { id: empresaIdParsed },
+            select: { id: true, nombre: true },
+        });
+
+        if (!empresa) {
+            return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+        }
+
+        const datosTarjetaConEmpresa = {
+            ...datosTarjeta,
+            empresaId: empresa.id,
+            empresaNombre: empresa.nombre,
+        };
 
         // Crear tarjeta stop
         const tarjeta = await prisma.tarjetaStop.create({
             data: {
                 caminataId,
                 creadoPorId: session.id,
-                datos: datosTarjeta as any, // Guardamos todo el formulario como JSON (sin responsableCierre)
+                datos: datosTarjetaConEmpresa as any, // Guardamos todo el formulario como JSON (sin responsableCierre)
                 estado: 'PENDIENTE',
                 responsableCierreId: responsableCierre ? parseInt(responsableCierre) : null,
             },

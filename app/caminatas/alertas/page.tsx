@@ -302,6 +302,13 @@ export default function AlertasPage() {
         return new Date(dateStr).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
     }
 
+    function getEmpresaNombre(datos: any): string {
+        const empresa = [datos?.empresaNombre, datos?.empresa, datos?.empresaResponsable]
+            .find((value) => typeof value === 'string' && value.trim().length > 0);
+
+        return empresa || 'N/A';
+    }
+
     const reportesFiltrados = reportes.filter((r) => {
         const fecha = toChileDate(r.createdAt);
         if (fechaDesde && fecha < fechaDesde) return false;
@@ -870,6 +877,7 @@ export default function AlertasPage() {
                             {selectedItem.tipo === 'reporte' && (() => {
                                 const reporte = selectedItem.item as any;
                                 const datos = reporte.datos || {};
+                                const empresa = getEmpresaNombre(datos);
                                 return (
                                     <div className="space-y-6">
                                         <div className="grid grid-cols-2 gap-4">
@@ -896,6 +904,10 @@ export default function AlertasPage() {
                                                     }`}>
                                                     {datos.tipoRiesgo || 'N/A'}
                                                 </span>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-600 font-medium mb-1">Empresa</p>
+                                                <p className="text-gray-900">{empresa}</p>
                                             </div>
                                             <div>
                                                 <p className="text-sm text-gray-600 font-medium mb-1">Zona</p>
@@ -952,6 +964,7 @@ export default function AlertasPage() {
                             {selectedItem.tipo === 'tarjeta' && (() => {
                                 const tarjeta = selectedItem.item as any;
                                 const datos = tarjeta.datos || {};
+                                const empresa = getEmpresaNombre(datos);
                                 return (
                                     <div className="space-y-6">
                                         <div className="grid grid-cols-2 gap-4">
@@ -981,6 +994,10 @@ export default function AlertasPage() {
                                             <div>
                                                 <p className="text-sm text-gray-600 font-medium mb-1">Faena</p>
                                                 <p className="text-gray-900">{datos.faenas || 'N/A'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-600 font-medium mb-1">Empresa</p>
+                                                <p className="text-gray-900">{empresa}</p>
                                             </div>
                                         </div>
 
@@ -1029,6 +1046,7 @@ export default function AlertasPage() {
                             {selectedItem.tipo === 'control' && (() => {
                                 const control = selectedItem.item as any;
                                 const datos = control.datos || {};
+                                const empresa = getEmpresaNombre(datos);
                                 const itemsCumplidos = datos.itemsControl ? datos.itemsControl.filter((item: any) => item.cumple === 'SI').length : 0;
                                 const totalItems = datos.itemsControl ? datos.itemsControl.length : 0;
                                 const porcentaje = totalItems > 0 ? Math.round((itemsCumplidos / totalItems) * 100) : 0;
@@ -1067,6 +1085,10 @@ export default function AlertasPage() {
                                             <div>
                                                 <p className="text-sm text-gray-600 font-medium mb-1">Tarea/Actividad</p>
                                                 <p className="text-gray-900">{datos.tareaActividad || 'N/A'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-600 font-medium mb-1">Empresa</p>
+                                                <p className="text-gray-900">{empresa}</p>
                                             </div>
                                             <div>
                                                 <p className="text-sm text-gray-600 font-medium mb-1">Zona</p>

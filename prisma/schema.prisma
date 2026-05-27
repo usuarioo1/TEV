@@ -47,6 +47,15 @@ model Post {
   author    User    @relation(fields: [authorId], references: [id])
 }
 
+model Empresa {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  servicios Servicio[]
+  caminatas CaminataSeguridad[]
+}
+
 model Servicio {
   id                    Int                    @id @default(autoincrement())
   codigo                String                 @unique
@@ -61,6 +70,7 @@ model Servicio {
   fechaInicio           DateTime?
   fechaFinalizacion     DateTime?
   estado                EstadoServicio         @default(PENDIENTE)
+  empresaId             Int?
   operarioId            Int?
   coordinadorId         Int
   observaciones         String?
@@ -75,8 +85,11 @@ model Servicio {
   guiaDespacho          GuiaDespacho?
   hallazgos             Hallazgo[]
   noConformidades       NoConformidad[]
+  empresa               Empresa?               @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   coordinador           User                   @relation("Coordinador", fields: [coordinadorId], references: [id])
   operario              User?                  @relation("OperarioAsignado", fields: [operarioId], references: [id])
+
+  @@index([empresaId])
 }
 
 model ChecklistEquipo {
@@ -227,6 +240,7 @@ model CaminataSeguridad {
   zona                String
   faena               String
   actividad           String
+  empresaId           Int?
   coordinadorId       Int
   asignadoId          Int
   acompananteId       Int?
@@ -240,12 +254,15 @@ model CaminataSeguridad {
   fechaCompletacion   DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
+  empresa             Empresa?            @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   acompanante         User?               @relation("AcompananteCaminata", fields: [acompananteId], references: [id])
   asignado            User                @relation("AsignadoCaminata", fields: [asignadoId], references: [id])
   coordinador         User                @relation("CoordinadorCaminata", fields: [coordinadorId], references: [id])
   controlesCalidadART ControlCalidadART[]
   reportesPeligro     ReportePeligro[]
   tarjetasStop        TarjetaStop[]
+
+  @@index([empresaId])
 }
 
 model ReportePeligro {

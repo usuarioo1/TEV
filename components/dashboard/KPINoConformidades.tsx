@@ -87,9 +87,10 @@ const INNER_R = 36;
 interface KPINoConformidadesProps {
     fechaDesde?: string;
     fechaHasta?: string;
+    empresaId?: string;
 }
 
-export default function KPINoConformidades({ fechaDesde, fechaHasta }: KPINoConformidadesProps = {}) {
+export default function KPINoConformidades({ fechaDesde, fechaHasta, empresaId }: KPINoConformidadesProps = {}) {
     const [data, setData] = useState<NoConformidadesGestionData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -99,6 +100,7 @@ export default function KPINoConformidades({ fechaDesde, fechaHasta }: KPINoConf
         const params = new URLSearchParams();
         if (fechaDesde) params.set('fechaInicio', fechaDesde);
         if (fechaHasta) params.set('fechaFin', fechaHasta);
+        if (empresaId) params.set('empresaId', empresaId);
         const url = params.toString()
             ? `/api/dashboard/no-conformidades-gestion?${params}`
             : '/api/dashboard/no-conformidades-gestion';
@@ -109,7 +111,7 @@ export default function KPINoConformidades({ fechaDesde, fechaHasta }: KPINoConf
             })
             .then((d) => { setData(d); setLoading(false); })
             .catch((err) => { setError(err.message); setLoading(false); });
-    }, [fechaDesde, fechaHasta]);
+    }, [fechaDesde, fechaHasta, empresaId]);
 
     const slices = data
         ? buildDonutSlices(

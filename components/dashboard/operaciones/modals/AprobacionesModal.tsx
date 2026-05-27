@@ -65,6 +65,7 @@ export default function AprobacionesModal({
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Servicio</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Resultado</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Estado actual</th>
+                                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Empresa</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Supervisor</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Operario</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Coordinador</th>
@@ -99,6 +100,7 @@ export default function AprobacionesModal({
                                                 )}
                                             </td>
                                             <td className="px-3 py-2 text-gray-700">{servicio.estadoServicio}</td>
+                                            <td className="px-3 py-2 text-gray-700">{servicio.empresaNombre}</td>
                                             <td className="px-3 py-2 text-gray-700">{servicio.supervisor}</td>
                                             <td className="px-3 py-2 text-gray-700">{servicio.operario}</td>
                                             <td className="px-3 py-2 text-gray-700">{servicio.coordinador}</td>

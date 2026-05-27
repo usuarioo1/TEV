@@ -7,6 +7,7 @@ export const OPERACIONES_EXCEL_COLS = [
     { wch: 32 },
     { wch: 20 },
     { wch: 20 },
+    { wch: 24 },
     { wch: 18 },
     { wch: 18 },
     { wch: 24 },
@@ -83,6 +84,7 @@ export function buildOperacionesExportRows(servicios: Servicio[]) {
         'Descripción': servicio.descripcion,
         'Estado': getEstadoTexto(servicio.estado),
         'Estado (código)': servicio.estado,
+        Empresa: servicio.empresa?.nombre || 'Sin empresa',
         Origen: servicio.origen,
         Destino: servicio.destino,
         Operario: servicio.operario?.name || servicio.operario?.username || 'Sin operario',
@@ -118,17 +120,20 @@ interface BuildOperacionesExcelFilenameArgs {
     fechaDesde?: string;
     fechaHasta?: string;
     estadoFiltro: string;
+    empresaNombre?: string;
 }
 
 export function buildOperacionesExcelFilename({
     fechaDesde,
     fechaHasta,
     estadoFiltro,
+    empresaNombre,
 }: BuildOperacionesExcelFilenameArgs): string {
     const hoy = getSantiagoDateKey(new Date());
     const desde = fechaDesde || 'sin-inicio';
     const hasta = fechaHasta || 'sin-fin';
     const estado = normalizeFileNamePart(estadoFiltro === 'TODOS' ? 'todos' : estadoFiltro);
+    const empresa = normalizeFileNamePart(empresaNombre || 'todas-empresas');
 
-    return `operaciones-${estado}-${desde}_a_${hasta}-${hoy}.xlsx`;
+    return `operaciones-${estado}-${empresa}-${desde}_a_${hasta}-${hoy}.xlsx`;
 }

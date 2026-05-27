@@ -57,6 +57,16 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const fechaInicioParam = searchParams.get('fechaInicio');
     const fechaFinParam = searchParams.get('fechaFin');
+    const empresaIdParam = searchParams.get('empresaId');
+
+    let empresaId: number | null = null;
+    if (empresaIdParam) {
+        const parsedEmpresaId = Number(empresaIdParam);
+        if (!Number.isInteger(parsedEmpresaId) || parsedEmpresaId <= 0) {
+            return NextResponse.json({ error: 'empresaId inválido' }, { status: 400 });
+        }
+        empresaId = parsedEmpresaId;
+    }
 
     const fechaProgramadaWhereCompat = buildDateOnlyCompatWhere(fechaInicioParam, fechaFinParam);
     const hasFechaProgramadaFilter = !!(fechaProgramadaWhereCompat.gte || fechaProgramadaWhereCompat.lte);
@@ -87,6 +97,7 @@ export async function GET(request: Request) {
             where: {
                 asignadoId: { in: userIds },
                 estado: { not: 'CANCELADA' },
+                ...(empresaId && { empresaId }),
                 ...(fechaProgramadaWhere && { fechaProgramada: fechaProgramadaWhere }),
             },
             select: {
@@ -100,6 +111,7 @@ export async function GET(request: Request) {
             where: {
                 asignadoId: { in: userIds },
                 tipo: { in: ['reporte_peligro', 'tarjeta_stop', 'control_art'] },
+                ...(empresaId && { estado: 'COMPLETADA' }),
                 ...(fechaProgramadaWhere && { fechaProgramada: fechaProgramadaWhere }),
             },
             select: {

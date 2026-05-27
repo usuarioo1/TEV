@@ -89,7 +89,22 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
 
         // Si viene de una tarea asignada, el creador oficial es el prevencionista que asignó la tarea
-        const { _tareaId, ...datosControl } = body;
+        const { empresaId, _tareaId, ...datosControl } = body;
+
+        const empresaIdParsed = Number.parseInt(String(empresaId ?? ''), 10);
+        if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+            return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+        }
+
+        const empresa = await prisma.empresa.findUnique({
+            where: { id: empresaIdParsed },
+            select: { id: true, nombre: true },
+        });
+
+        if (!empresa) {
+            return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+        }
+
         let creadoPorId = session.id;
         if (_tareaId) {
             const tarea = await prisma.tareaAsignada.findUnique({
@@ -103,11 +118,17 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        const datosControlConEmpresa = {
+            ...datosControl,
+            empresaId: empresa.id,
+            empresaNombre: empresa.nombre,
+        };
+
         // Crear el control independiente (sin caminataId)
         const nuevoControl = await prisma.controlCalidadART.create({
             data: {
                 creadoPorId,
-                datos: datosControl, // Todo el formulario va en datos
+                datos: datosControlConEmpresa, // Todo el formulario va en datos
             },
             include: {
                 creadoPor: {

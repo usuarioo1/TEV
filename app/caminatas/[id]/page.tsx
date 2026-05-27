@@ -45,12 +45,18 @@ interface ControlCalidadART {
     creadoPor: { id: number; name: string | null; username: string; rol: string };
 }
 
+interface Empresa {
+    id: number;
+    nombre: string;
+}
+
 interface Caminata {
     id: number;
     codigo: string;
     zona: string;
     faena: string;
     actividad: string;
+    empresaId: number | null;
     estado: string;
     observaciones: string | null;
     tieneFotografias: boolean;
@@ -78,6 +84,10 @@ interface Caminata {
         name: string | null;
         rol: string;
     } | null;
+    empresa?: {
+        id: number;
+        nombre: string;
+    } | null;
     reportesPeligro: ReportePeligro[];
     tarjetasStop: TarjetaStop[];
     controlesCalidadART: ControlCalidadART[];
@@ -103,6 +113,7 @@ export default function DetalleCaminataPage() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [tipoFormulario, setTipoFormulario] = useState<'seleccion' | 'peligro' | 'stop'>('seleccion');
     const [trabajadores, setTrabajadores] = useState<{ id: number; name: string | null; username: string; rol: string }[]>([]);
+    const [empresas, setEmpresas] = useState<Empresa[]>([]);
 
     const [formData, setFormData] = useState({
         observaciones: '',
@@ -111,6 +122,7 @@ export default function DetalleCaminataPage() {
         zona: '',
         faena: '',
         actividad: '',
+        empresaId: '',
         acompananteId: '',
     });
 
@@ -120,6 +132,11 @@ export default function DetalleCaminataPage() {
             .then((r) => r.json())
             .then((data) => setTrabajadores(Array.isArray(data) ? data : []))
             .catch(() => setTrabajadores([]));
+
+        fetch('/api/empresas')
+            .then((r) => r.json())
+            .then((data) => setEmpresas(Array.isArray(data) ? data : []))
+            .catch(() => setEmpresas([]));
     }, [id]);
     const fetchCaminata = async () => {
         try {
@@ -134,6 +151,7 @@ export default function DetalleCaminataPage() {
                 zona: data.zona || '',
                 faena: data.faena || '',
                 actividad: data.actividad || '',
+                empresaId: data.empresaId ? data.empresaId.toString() : '',
                 acompananteId: data.acompanante?.id?.toString() || '',
             });
         } catch (err: any) {
@@ -177,12 +195,18 @@ export default function DetalleCaminataPage() {
         setError(null);
 
         try {
+            const payload: { estado: string; observaciones?: string } = { estado: nuevoEstado };
+
+            if (nuevoEstado === 'COMPLETADA') {
+                payload.observaciones = formData.observaciones;
+            }
+
             const response = await fetch(`/api/caminatas/${id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ estado: nuevoEstado }),
+                body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
@@ -263,26 +287,40 @@ export default function DetalleCaminataPage() {
         return true;
     };
 
+    const hasEmpresaSeleccionada = Number.parseInt(formData.empresaId, 10) > 0;
+
+    const isCaminataInfoPersistedComplete = !!(
+        caminata &&
+        isCaminataInfoComplete(caminata.zona) &&
+        isCaminataInfoComplete(caminata.faena) &&
+        isCaminataInfoComplete(caminata.actividad) &&
+        typeof caminata.empresaId === 'number' &&
+        caminata.empresaId > 0
+    );
+
     const showMiniInfoForm = !!(
         canEdit &&
         caminata &&
-        !(
-            isCaminataInfoComplete(caminata.zona) &&
-            isCaminataInfoComplete(caminata.faena) &&
-            isCaminataInfoComplete(caminata.actividad)
-        )
+        !isCaminataInfoPersistedComplete
+    );
+
+    const canStartCaminata = !!(
+        canEdit &&
+        caminata?.estado === 'PENDIENTE' &&
+        isCaminataInfoPersistedComplete
     );
 
     const showObservacionesInput = !!(canEdit && caminata?.estado === 'EN_PROCESO');
 
     const buildCaminataTimeline = (c: Caminata) => {
         const events: any[] = [];
+        const empresaDetalle = c.empresa?.nombre ? ` para ${c.empresa.nombre}` : '';
 
         // ── Creación ──────────────────────────────────────────────────────────
         events.push({
             timestamp: new Date(c.fechaCreacion),
             title: 'Caminata Creada',
-            description: `Se creó la caminata ${c.codigo} en ${c.zona} — ${c.faena}`,
+            description: `Se creó la caminata ${c.codigo} en ${c.zona} — ${c.faena}${empresaDetalle}`,
             user: c.coordinador,
             status: 'PENDIENTE',
             type: 'creation',
@@ -317,6 +355,7 @@ export default function DetalleCaminataPage() {
             // Construir formDetails con los campos del formulario
             const formDetails: any[] = [];
             if (datos.tipoPeligro) formDetails.push({ label: 'Tipo de Peligro', value: datos.tipoPeligro });
+            if (datos.empresaNombre) formDetails.push({ label: 'Empresa', value: datos.empresaNombre });
             if (datos.zonas) formDetails.push({ label: 'Zonas Afectadas', value: datos.zonas });
             if (datos.faena || datos.faenas) formDetails.push({ label: 'Faena', value: datos.faena || datos.faenas });
             if (datos.actividad) formDetails.push({ label: 'Actividad', value: datos.actividad });
@@ -424,6 +463,7 @@ export default function DetalleCaminataPage() {
             const label = datos.causa || datos.motivoAplicacionFinal || `Tarjeta Stop #${idx + 1}`;
 
             const formDetails: any[] = [];
+            if (datos.empresaNombre) formDetails.push({ label: 'Empresa', value: datos.empresaNombre });
             if (datos.motivoAplicacionFinal || datos.motivoAplicacion) formDetails.push({ label: 'Motivo de Aplicación', value: datos.motivoAplicacionFinal || datos.motivoAplicacion });
             if (datos.causa) formDetails.push({ label: 'Causa', value: datos.causa });
             if (datos.zonas) formDetails.push({ label: 'Zona', value: datos.zonas });
@@ -477,11 +517,13 @@ export default function DetalleCaminataPage() {
                 status: 'COMPLETADO',
                 type: 'creation',
                 formDetails: [
+                    ...(datos.empresaNombre ? [{ label: 'Empresa', value: datos.empresaNombre }] : []),
                     ...(datos.area ? [{ label: 'Área', value: datos.area }] : []),
                     ...(datos.tareaActividad ? [{ label: 'Tarea/Actividad', value: datos.tareaActividad }] : []),
                     ...(datos.zonas ? [{ label: 'Zona', value: datos.zonas }] : []),
                     ...(datos.faenas ? [{ label: 'Faena', value: datos.faenas }] : []),
                 ].length > 0 ? [
+                    ...(datos.empresaNombre ? [{ label: 'Empresa', value: datos.empresaNombre }] : []),
                     ...(datos.area ? [{ label: 'Área', value: datos.area }] : []),
                     ...(datos.tareaActividad ? [{ label: 'Tarea/Actividad', value: datos.tareaActividad }] : []),
                     ...(datos.zonas ? [{ label: 'Zona', value: datos.zonas }] : []),
@@ -609,6 +651,10 @@ export default function DetalleCaminataPage() {
                                         <p className="mt-1 text-gray-900">{caminata.faena}</p>
                                     </div>
                                 </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-500">Empresa</label>
+                                    <p className="mt-1 text-gray-900">{caminata.empresa?.nombre || 'Pendiente por definir'}</p>
+                                </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-sm font-medium text-gray-500">Fecha de Inicio Programada</label>
@@ -699,6 +745,22 @@ export default function DetalleCaminataPage() {
                                     </div>
 
                                     <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Empresa</label>
+                                        <select
+                                            value={formData.empresaId}
+                                            onChange={(e) => setFormData({ ...formData, empresaId: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                                        >
+                                            <option value="">Seleccionar empresa...</option>
+                                            {empresas.map((empresa) => (
+                                                <option key={empresa.id} value={empresa.id.toString()}>
+                                                    {empresa.nombre}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Acompañante (Opcional)</label>
                                         <select
                                             value={formData.acompananteId}
@@ -716,7 +778,7 @@ export default function DetalleCaminataPage() {
 
                                     <button
                                         onClick={handleUpdate}
-                                        disabled={updating}
+                                        disabled={updating || !hasEmpresaSeleccionada}
                                         className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
                                     >
                                         {updating ? 'Guardando...' : 'Guardar Información de Caminata'}
@@ -737,13 +799,9 @@ export default function DetalleCaminataPage() {
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-black"
                                         placeholder="Agrega observaciones sobre la caminata..."
                                     />
-                                    <button
-                                        onClick={handleUpdate}
-                                        disabled={updating}
-                                        className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
-                                    >
-                                        {updating ? 'Guardando...' : 'Guardar Cambios'}
-                                    </button>
+                                    <p className="mt-2 text-xs text-gray-500">
+                                        Las observaciones se guardarán cuando presiones "Completar Caminata".
+                                    </p>
                                 </>
                             ) : (
                                 <div>
@@ -758,6 +816,38 @@ export default function DetalleCaminataPage() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Acciones */}
+                        {canEdit && (
+                            <div className="bg-white rounded-lg shadow p-6">
+                                <h2 className="text-lg font-semibold text-gray-900 mb-4">Acciones</h2>
+                                <div className="space-y-3">
+                                    {canStartCaminata && (
+                                        <button
+                                            onClick={() => handleChangeEstado('EN_PROCESO')}
+                                            disabled={updating}
+                                            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+                                        >
+                                            Iniciar Caminata
+                                        </button>
+                                    )}
+                                    {caminata.estado === 'PENDIENTE' && !canStartCaminata && (
+                                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                            Completa y guarda la información inicial de la caminata para habilitar "Iniciar Caminata".
+                                        </div>
+                                    )}
+                                    {caminata.estado === 'EN_PROCESO' && (
+                                        <button
+                                            onClick={() => handleChangeEstado('COMPLETADA')}
+                                            disabled={updating}
+                                            className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+                                        >
+                                            Completar Caminata
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Reportes y Tarjetas */}
                         <div className="bg-white rounded-lg shadow p-6">
@@ -817,6 +907,12 @@ export default function DetalleCaminataPage() {
                                                         )}
 
                                                         <div className="grid grid-cols-2 gap-3 text-sm">
+                                                            {datos.empresaNombre && (
+                                                                <div>
+                                                                    <span className="text-gray-500">Empresa:</span>
+                                                                    <span className="ml-1 text-gray-900">{datos.empresaNombre}</span>
+                                                                </div>
+                                                            )}
                                                             {datos.faena && (
                                                                 <div>
                                                                     <span className="text-gray-500">Faena:</span>
@@ -956,6 +1052,12 @@ export default function DetalleCaminataPage() {
 
                                                         {/* Responsable */}
                                                         <div className="grid grid-cols-1 gap-2 text-sm border-t border-red-300 pt-3">
+                                                            {datos.empresaNombre && (
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-600">Empresa:</span>
+                                                                    <span className="text-gray-900 font-medium">{datos.empresaNombre}</span>
+                                                                </div>
+                                                            )}
                                                             {datos.responsableCierre && (
                                                                 <div className="flex justify-between">
                                                                     <span className="text-gray-600">Responsable de Cierre:</span>
@@ -1028,33 +1130,6 @@ export default function DetalleCaminataPage() {
                                 )}
                             </div>
                         </div>
-
-                        {/* Acciones */}
-                        {canEdit && (
-                            <div className="bg-white rounded-lg shadow p-6">
-                                <h2 className="text-lg font-semibold text-gray-900 mb-4">Acciones</h2>
-                                <div className="space-y-3">
-                                    {caminata.estado === 'PENDIENTE' && (
-                                        <button
-                                            onClick={() => handleChangeEstado('EN_PROCESO')}
-                                            disabled={updating}
-                                            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
-                                        >
-                                            Iniciar Caminata
-                                        </button>
-                                    )}
-                                    {caminata.estado === 'EN_PROCESO' && (
-                                        <button
-                                            onClick={() => handleChangeEstado('COMPLETADA')}
-                                            disabled={updating}
-                                            className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
-                                        >
-                                            Completar Caminata
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        )}
 
                         {/* Generar PDF (Placeholder) */}
                         {/* <div className="bg-white rounded-lg shadow p-6">

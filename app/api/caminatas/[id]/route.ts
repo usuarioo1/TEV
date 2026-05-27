@@ -23,6 +23,12 @@ export async function GET(
         const caminata = await prisma.caminataSeguridad.findUnique({
             where: { id: caminataId },
             include: {
+                empresa: {
+                    select: {
+                        id: true,
+                        nombre: true,
+                    },
+                },
                 coordinador: {
                     select: {
                         id: true,
@@ -132,7 +138,7 @@ export async function PUT(
 
         if (caminata.asignadoId === session.id) {
             // El asignado puede actualizar avance y completar información operativa
-            const { observaciones, tieneFotografias, tieneDocumentos, estado, zona, faena, actividad, acompananteId } = body;
+            const { observaciones, tieneFotografias, tieneDocumentos, estado, zona, faena, actividad, acompananteId, empresaId } = body;
 
             if (observaciones !== undefined) updateData.observaciones = observaciones;
             if (tieneFotografias !== undefined) updateData.tieneFotografias = tieneFotografias;
@@ -141,6 +147,28 @@ export async function PUT(
             if (zona !== undefined) updateData.zona = zona;
             if (faena !== undefined) updateData.faena = faena;
             if (actividad !== undefined) updateData.actividad = actividad;
+
+            if (empresaId !== undefined) {
+                if (empresaId === null || empresaId === '') {
+                    updateData.empresaId = null;
+                } else {
+                    const empresaParsed = Number.parseInt(String(empresaId), 10);
+                    if (!Number.isInteger(empresaParsed) || empresaParsed <= 0) {
+                        return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+                    }
+
+                    const empresa = await prisma.empresa.findUnique({
+                        where: { id: empresaParsed },
+                        select: { id: true },
+                    });
+
+                    if (!empresa) {
+                        return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+                    }
+
+                    updateData.empresaId = empresaParsed;
+                }
+            }
 
             if (acompananteId !== undefined) {
                 if (acompananteId === null || acompananteId === '') {
@@ -164,7 +192,7 @@ export async function PUT(
             }
         } else if (caminata.coordinadorId === session.id) {
             // El coordinador puede actualizar datos básicos
-            const { zona, faena, actividad, asignadoId, acompananteId, estado } = body;
+            const { zona, faena, actividad, asignadoId, acompananteId, estado, empresaId } = body;
 
             if (zona !== undefined) updateData.zona = zona;
             if (faena !== undefined) updateData.faena = faena;
@@ -172,6 +200,28 @@ export async function PUT(
             if (asignadoId !== undefined) updateData.asignadoId = asignadoId;
             if (acompananteId !== undefined) updateData.acompananteId = acompananteId || null;
             if (estado !== undefined) updateData.estado = estado;
+
+            if (empresaId !== undefined) {
+                if (empresaId === null || empresaId === '') {
+                    updateData.empresaId = null;
+                } else {
+                    const empresaParsed = Number.parseInt(String(empresaId), 10);
+                    if (!Number.isInteger(empresaParsed) || empresaParsed <= 0) {
+                        return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+                    }
+
+                    const empresa = await prisma.empresa.findUnique({
+                        where: { id: empresaParsed },
+                        select: { id: true },
+                    });
+
+                    if (!empresa) {
+                        return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+                    }
+
+                    updateData.empresaId = empresaParsed;
+                }
+            }
         } else {
             return NextResponse.json({ error: 'No tienes permisos para actualizar esta caminata' }, { status: 403 });
         }
@@ -207,6 +257,12 @@ export async function PUT(
                         name: true,
                         username: true,
                         rol: true,
+                    },
+                },
+                empresa: {
+                    select: {
+                        id: true,
+                        nombre: true,
                     },
                 },
                 _count: {

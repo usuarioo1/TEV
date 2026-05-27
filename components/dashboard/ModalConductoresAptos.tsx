@@ -10,6 +10,7 @@ interface ChecklistFatigaResumen {
     fechaChecklist: string;
     servicioId: number;
     servicioCodigo: string;
+    empresaNombre: string;
     descripcion: string;
     origen: string;
     destino: string;
@@ -98,6 +99,7 @@ export default function ModalConductoresAptos({
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Servicio</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Resultado</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Reemplazo</th>
+                                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Empresa</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Operario</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Coordinador</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Fecha checklist</th>
@@ -125,6 +127,7 @@ export default function ModalConductoresAptos({
                                                     {checklist.requiereReemplazo ? 'Sí' : 'No'}
                                                 </span>
                                             </td>
+                                            <td className="px-3 py-2 text-gray-700">{checklist.empresaNombre}</td>
                                             <td className="px-3 py-2 text-gray-700">{checklist.operario}</td>
                                             <td className="px-3 py-2 text-gray-700">{checklist.coordinador}</td>
                                             <td className="px-3 py-2 text-gray-700">{formatChecklistDate(checklist.fechaChecklist)}</td>

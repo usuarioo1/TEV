@@ -39,14 +39,34 @@ export async function POST(
         }
 
         // Extraer el responsableCierre del body
-        const { responsableCierre, ...datosReporte } = body;
+        const { responsableCierre, empresaId, ...datosReporte } = body;
+
+        const empresaIdParsed = Number.parseInt(String(empresaId ?? ''), 10);
+        if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+            return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+        }
+
+        const empresa = await prisma.empresa.findUnique({
+            where: { id: empresaIdParsed },
+            select: { id: true, nombre: true },
+        });
+
+        if (!empresa) {
+            return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+        }
+
+        const datosReporteConEmpresa = {
+            ...datosReporte,
+            empresaId: empresa.id,
+            empresaNombre: empresa.nombre,
+        };
 
         // Crear reporte de peligro
         const reporte = await prisma.reportePeligro.create({
             data: {
                 caminataId,
                 creadoPorId: session.id,
-                datos: datosReporte, // Guardamos todo el formulario como JSON (sin responsableCierre)
+                datos: datosReporteConEmpresa, // Guardamos todo el formulario como JSON (sin responsableCierre)
                 estado: 'PENDIENTE',
                 responsableCierreId: responsableCierre ? parseInt(responsableCierre) : null,
             },

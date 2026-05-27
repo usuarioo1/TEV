@@ -87,9 +87,10 @@ const INNER_R = 36;
 interface KPIHallazgosProps {
     fechaDesde?: string;
     fechaHasta?: string;
+    empresaId?: string;
 }
 
-export default function KPIHallazgos({ fechaDesde, fechaHasta }: KPIHallazgosProps = {}) {
+export default function KPIHallazgos({ fechaDesde, fechaHasta, empresaId }: KPIHallazgosProps = {}) {
     const [data, setData] = useState<HallazgosGestionData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -98,6 +99,7 @@ export default function KPIHallazgos({ fechaDesde, fechaHasta }: KPIHallazgosPro
         const params = new URLSearchParams();
         if (fechaDesde) params.set('fechaInicio', fechaDesde);
         if (fechaHasta) params.set('fechaFin', fechaHasta);
+        if (empresaId) params.set('empresaId', empresaId);
         const url = params.toString()
             ? `/api/dashboard/hallazgos-gestion?${params}`
             : '/api/dashboard/hallazgos-gestion';
@@ -108,7 +110,7 @@ export default function KPIHallazgos({ fechaDesde, fechaHasta }: KPIHallazgosPro
             })
             .then((d) => { setData(d); setError(null); setLoading(false); })
             .catch((err) => { setError(err.message); setData(null); setLoading(false); });
-    }, [fechaDesde, fechaHasta]);
+    }, [fechaDesde, fechaHasta, empresaId]);
 
     const slices = data
         ? buildDonutSlices(

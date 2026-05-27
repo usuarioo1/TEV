@@ -16,13 +16,20 @@ interface Usuario {
     rol: string;
 }
 
+interface Empresa {
+    id: number;
+    nombre: string;
+}
+
 export default function ReportePeligroForm({ caminataId, tareaId, onSuccess, onCancel }: ReportePeligroFormProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [imagenes, setImagenes] = useState<File[]>([]);
     const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+    const [empresas, setEmpresas] = useState<Empresa[]>([]);
 
     const [formData, setFormData] = useState({
+        empresaId: '',
         tipoPeligro: '',
         zonas: '',
         faena: '',
@@ -51,7 +58,21 @@ export default function ReportePeligroForm({ caminataId, tareaId, onSuccess, onC
                 console.error('Error al cargar usuarios:', err);
             }
         };
+
+        const fetchEmpresas = async () => {
+            try {
+                const response = await fetch('/api/empresas');
+                if (response.ok) {
+                    const data = await response.json();
+                    setEmpresas(Array.isArray(data) ? data : []);
+                }
+            } catch (err) {
+                console.error('Error al cargar empresas:', err);
+            }
+        };
+
         fetchUsuarios();
+        fetchEmpresas();
     }, []);
 
     // Función para convertir File a base64
@@ -70,6 +91,11 @@ export default function ReportePeligroForm({ caminataId, tareaId, onSuccess, onC
         setError(null);
 
         try {
+            const empresaIdNumber = Number.parseInt(formData.empresaId, 10);
+            if (!Number.isInteger(empresaIdNumber) || empresaIdNumber <= 0) {
+                throw new Error('Debes seleccionar una empresa valida');
+            }
+
             let imagenesUrls: Array<{ url: string; publicId: string }> = [];
 
             // Si hay imágenes, subirlas a Cloudinary primero
@@ -106,6 +132,7 @@ export default function ReportePeligroForm({ caminataId, tareaId, onSuccess, onC
             // Preparar datos incluyendo URLs de imágenes
             const reporteData = {
                 ...formData,
+                empresaId: empresaIdNumber,
                 imagenes: imagenesUrls,
                 cantidadImagenes: imagenesUrls.length,
                 fechaReporte: new Date().toISOString(),
@@ -178,6 +205,31 @@ export default function ReportePeligroForm({ caminataId, tareaId, onSuccess, onC
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Empresa */}
+                    <div>
+                        <label htmlFor="empresaId" className="block text-sm font-medium text-gray-700 mb-2">
+                            Empresa *
+                        </label>
+                        <select
+                            id="empresaId"
+                            name="empresaId"
+                            required
+                            value={formData.empresaId}
+                            onChange={handleChange}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-black"
+                        >
+                            <option value="">Seleccionar empresa...</option>
+                            {empresas.map((empresa) => (
+                                <option key={empresa.id} value={empresa.id.toString()}>
+                                    {empresa.nombre}
+                                </option>
+                            ))}
+                        </select>
+                        {empresas.length === 0 && (
+                            <p className="mt-1 text-xs text-amber-600">No hay empresas disponibles. Solicita crear una empresa antes de reportar.</p>
+                        )}
+                    </div>
+
                     {/* Tipo de Peligro */}
                     <div>
                         <label htmlFor="tipoPeligro" className="block text-sm font-medium text-gray-700 mb-2">

@@ -19,18 +19,21 @@ export default function GestionDesempenoPage() {
         rows,
         detalles,
         users,
+        empresas,
         canFilterByUser,
         loading,
         error,
         fechaDesde,
         fechaHasta,
         selectedUserId,
+        selectedEmpresaId,
         filtro,
         detalleActivo,
         metrics,
         setFechaDesde,
         setFechaHasta,
         setSelectedUserId,
+        setSelectedEmpresaId,
         aplicarFiltro,
         limpiarFiltro,
         toggleDetalle,
@@ -59,12 +62,15 @@ export default function GestionDesempenoPage() {
                         fechaDesde={fechaDesde}
                         fechaHasta={fechaHasta}
                         selectedUserId={selectedUserId}
+                        selectedEmpresaId={selectedEmpresaId}
                         canFilterByUser={canFilterByUser}
                         users={users}
-                        hasFiltroActivo={Boolean(filtro.desde || filtro.hasta)}
+                        empresas={empresas}
+                        hasFiltroActivo={Boolean(filtro.desde || filtro.hasta || filtro.empresaId)}
                         onFechaDesdeChange={setFechaDesde}
                         onFechaHastaChange={setFechaHasta}
                         onSelectedUserIdChange={setSelectedUserId}
+                        onSelectedEmpresaIdChange={setSelectedEmpresaId}
                         onAplicar={aplicarFiltro}
                         onLimpiar={limpiarFiltro}
                     />
@@ -88,6 +94,7 @@ export default function GestionDesempenoPage() {
                             <DistribucionEstatusUsuarios
                                 fechaDesde={filtro.desde}
                                 fechaHasta={filtro.hasta}
+                                empresaId={filtro.empresaId}
                             />
                             <ProgramadasPorTipoPieChart rows={rows} />
                             <ComparativoProgramadasNoProgramadasChart rows={rows} />
@@ -95,6 +102,7 @@ export default function GestionDesempenoPage() {
                                 <ActividadesPorRolChart
                                     fechaDesde={filtro.desde}
                                     fechaHasta={filtro.hasta}
+                                    empresaId={filtro.empresaId}
                                 />
                                 <CumplimientoPorTipoActividadChart rows={rows} />
                             </div>

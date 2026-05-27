@@ -100,6 +100,20 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
         },
     });
 
+    const roleConfig: Array<{ key: string; label: string }> = [
+        { key: 'jefaturas', label: 'Jefaturas' },
+        { key: 'coordinador', label: 'Coordinador' },
+        { key: 'supervisor', label: 'Supervisor' },
+        { key: 'operario', label: 'Operario' },
+        { key: 'prevencionista', label: 'Prevencionista' },
+        { key: 'taller', label: 'Taller' },
+    ];
+
+    const roleCounts = users.reduce<Record<string, number>>((acc, user) => {
+        acc[user.rol] = (acc[user.rol] ?? 0) + 1;
+        return acc;
+    }, {});
+
     return (
         <div className="min-h-screen bg-gray-50 py-8">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -159,6 +173,26 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
                         <span className="font-semibold">Acceso autorizado:</span> Estás viendo esta página como{' '}
                         <span className="font-semibold capitalize">{session?.rol}</span>
                     </p>
+                </div>
+
+                <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Roles
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-800">
+                            Total {users.length}
+                        </span>
+                        {roleConfig.map((role) => (
+                            <span
+                                key={role.key}
+                                className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-700"
+                            >
+                                <span>{role.label}</span>
+                                <span className="font-semibold text-gray-900">{roleCounts[role.key] ?? 0}</span>
+                            </span>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Users Table */}
@@ -264,68 +298,6 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
                     </table>
                 </div>
 
-                {/* Stats */}
-                <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-4">
-                    <div className="bg-white overflow-hidden shadow rounded-lg">
-                        <div className="p-5">
-                            <div className="flex items-center">
-                                <div className="flex-1">
-                                    <dt className="text-sm font-medium text-gray-500 truncate">
-                                        Total Usuarios
-                                    </dt>
-                                    <dd className="mt-1 text-3xl font-semibold text-gray-900">
-                                        {users.length}
-                                    </dd>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white overflow-hidden shadow rounded-lg">
-                        <div className="p-5">
-                            <div className="flex items-center">
-                                <div className="flex-1">
-                                    <dt className="text-sm font-medium text-gray-500 truncate">
-                                        Jefaturas
-                                    </dt>
-                                    <dd className="mt-1 text-3xl font-semibold text-purple-600">
-                                        {users.filter(u => u.rol === 'jefaturas').length}
-                                    </dd>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white overflow-hidden shadow rounded-lg">
-                        <div className="p-5">
-                            <div className="flex items-center">
-                                <div className="flex-1">
-                                    <dt className="text-sm font-medium text-gray-500 truncate">
-                                        Jefaturas
-                                    </dt>
-                                    <dd className="mt-1 text-3xl font-semibold text-blue-600">
-                                        {users.filter(u => u.rol === 'jefaturas').length}
-                                    </dd>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white overflow-hidden shadow rounded-lg">
-                        <div className="p-5">
-                            <div className="flex items-center">
-                                <div className="flex-1">
-                                    <dt className="text-sm font-medium text-gray-500 truncate">
-                                        Operativos
-                                    </dt>
-                                    <dd className="mt-1 text-3xl font-semibold text-green-600">
-                                        {users.filter(u => ['supervisor', 'operario'].includes(u.rol)).length}
-                                    </dd>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     );

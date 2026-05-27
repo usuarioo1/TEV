@@ -27,6 +27,12 @@ export async function GET(request: NextRequest) {
                     ],
                 },
                 include: {
+                    empresa: {
+                        select: {
+                            id: true,
+                            nombre: true,
+                        },
+                    },
                     asignado: {
                         select: {
                             id: true,
@@ -73,6 +79,12 @@ export async function GET(request: NextRequest) {
                     ]
                 },
                 include: {
+                    empresa: {
+                        select: {
+                            id: true,
+                            nombre: true,
+                        },
+                    },
                     coordinador: {
                         select: {
                             id: true,
@@ -136,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { zona, faena, actividad, asignadoId, acompananteId, fechaProgramada, fechaLimite } = body;
+        const { zona, faena, actividad, asignadoId, acompananteId, fechaProgramada, fechaLimite, empresaId } = body;
 
         // Validaciones básicas
         if (!zona || !faena || !actividad) {
@@ -148,8 +160,27 @@ export async function POST(request: NextRequest) {
 
         let finalAsignadoId: number;
         let finalCoordinadorId: number;
+        let finalEmpresaId: number | null = null;
         let finalFechaProgramada: Date | null = null;
         let finalFechaLimite: Date | null = null;
+
+        if (empresaId !== undefined && empresaId !== null && empresaId !== '') {
+            const empresaParsed = Number.parseInt(String(empresaId), 10);
+            if (!Number.isInteger(empresaParsed) || empresaParsed <= 0) {
+                return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+            }
+
+            const empresa = await prisma.empresa.findUnique({
+                where: { id: empresaParsed },
+                select: { id: true },
+            });
+
+            if (!empresa) {
+                return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+            }
+
+            finalEmpresaId = empresa.id;
+        }
 
         // PREVENCIONISTA: único rol que puede asignar a otros (requiere asignadoId)
         if (session.rol === ROLES.PREVENCIONISTA) {
@@ -263,6 +294,7 @@ export async function POST(request: NextRequest) {
                 zona,
                 faena,
                 actividad,
+                empresaId: finalEmpresaId,
                 coordinadorId: finalCoordinadorId,
                 asignadoId: finalAsignadoId,
                 acompananteId: acompananteId || null,
@@ -292,6 +324,12 @@ export async function POST(request: NextRequest) {
                         name: true,
                         username: true,
                         rol: true,
+                    },
+                },
+                empresa: {
+                    select: {
+                        id: true,
+                        nombre: true,
                     },
                 },
             },

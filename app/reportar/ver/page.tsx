@@ -161,7 +161,7 @@ export default function VerReportesPage() {
                                                         <span className="text-xs text-gray-400">#{item.id}</span>
                                                     </div>
                                                     <p className="text-sm font-semibold text-gray-900 truncate">{item.datos?.tipoPeligro || 'Reporte de Peligro'}</p>
-                                                    <p className="text-xs text-gray-500 truncate">{item.caminata?.zona || item.datos?.zonas || 'Sin zona'} · {item.creadoPor}</p>
+                                                    <p className="text-xs text-gray-500 truncate">{item.datos?.empresaNombre ? `${item.datos.empresaNombre} · ` : ''}{item.caminata?.zona || item.datos?.zonas || 'Sin zona'} · {item.creadoPor}</p>
                                                 </div>
                                                 <Link
                                                     href={`/dashboard/alertas/reporte-peligro/${item.id}`}
@@ -201,7 +201,7 @@ export default function VerReportesPage() {
                                                         <span className="text-xs text-gray-400">#{item.id}</span>
                                                     </div>
                                                     <p className="text-sm font-semibold text-gray-900 truncate">{item.datos?.causa || 'Tarjeta Alto/Stop'}</p>
-                                                    <p className="text-xs text-gray-500 truncate">{item.caminata?.zona || item.datos?.zonas || 'Sin zona'} · {item.creadoPor}</p>
+                                                    <p className="text-xs text-gray-500 truncate">{item.datos?.empresaNombre ? `${item.datos.empresaNombre} · ` : ''}{item.caminata?.zona || item.datos?.zonas || 'Sin zona'} · {item.creadoPor}</p>
                                                 </div>
                                                 <Link
                                                     href={`/dashboard/alertas/tarjeta-stop/${item.id}`}
@@ -237,7 +237,7 @@ export default function VerReportesPage() {
                                             <div key={`art-${item.id}`} className="px-4 py-3 flex items-center gap-3 hover:bg-cyan-50/30">
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-semibold text-gray-900 truncate">Control ART #{item.id}</p>
-                                                    <p className="text-xs text-gray-500 truncate">{item.caminata?.zona || item.datos?.zonas || 'Sin zona'} · {item.creadoPor}</p>
+                                                    <p className="text-xs text-gray-500 truncate">{item.datos?.empresaNombre ? `${item.datos.empresaNombre} · ` : ''}{item.caminata?.zona || item.datos?.zonas || 'Sin zona'} · {item.creadoPor}</p>
                                                 </div>
                                                 <Link
                                                     href={`/dashboard/alertas/control-art/${item.id}`}

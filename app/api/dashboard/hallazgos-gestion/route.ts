@@ -20,14 +20,29 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const fechaInicio = searchParams.get('fechaInicio');
         const fechaFin = searchParams.get('fechaFin');
+        const empresaIdParam = searchParams.get('empresaId');
+
+        let empresaId: number | null = null;
+        if (empresaIdParam) {
+            const parsedEmpresaId = Number(empresaIdParam);
+            if (!Number.isInteger(parsedEmpresaId) || parsedEmpresaId <= 0) {
+                return NextResponse.json({ message: 'empresaId inválido' }, { status: 400 });
+            }
+            empresaId = parsedEmpresaId;
+        }
 
         const fechaAsignacionFilter: { gte?: Date; lte?: Date } = {};
         if (fechaInicio) fechaAsignacionFilter.gte = parseSantiagoDate(fechaInicio);
         if (fechaFin) fechaAsignacionFilter.lte = parseSantiagoDate(fechaFin, true);
 
+        const servicioWhere = {
+            ...(Object.keys(fechaAsignacionFilter).length ? { fechaAsignacion: fechaAsignacionFilter } : {}),
+            ...(empresaId ? { empresaId } : {}),
+        };
+
         const all = await prisma.hallazgo.findMany({
-            where: Object.keys(fechaAsignacionFilter).length
-                ? { servicio: { fechaAsignacion: fechaAsignacionFilter } }
+            where: Object.keys(servicioWhere).length
+                ? { servicio: servicioWhere }
                 : undefined,
             select: { estado: true, responsableRol: true },
         });

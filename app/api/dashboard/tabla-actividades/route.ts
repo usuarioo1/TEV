@@ -177,6 +177,19 @@ export async function GET(request: Request) {
     const fechaInicioParam = searchParams.get('fechaInicio');
     const fechaFinParam = searchParams.get('fechaFin');
     const userIdParam = searchParams.get('userId');
+    const empresaIdParam = searchParams.get('empresaId');
+
+    let empresaId: number | null = null;
+    if (empresaIdParam) {
+        const parsedEmpresaId = Number(empresaIdParam);
+        if (!Number.isInteger(parsedEmpresaId) || parsedEmpresaId <= 0) {
+            return NextResponse.json(
+                { error: 'empresaId inválido' },
+                { status: 400 },
+            );
+        }
+        empresaId = parsedEmpresaId;
+    }
 
     const canViewAll =
         session.rol === ROLES.JEFATURAS ||
@@ -266,6 +279,7 @@ export async function GET(request: Request) {
             where: {
                 ...asignadoFilter,
                 estado: { not: 'CANCELADA' },
+                ...(empresaId && { empresaId }),
                 ...(fechaProgramadaWhere && {
                     fechaProgramada: fechaProgramadaWhere,
                 }),
@@ -331,6 +345,7 @@ export async function GET(request: Request) {
             where: {
                 ...asignadoFilter,
                 estado: { not: 'CANCELADA' },
+                ...(empresaId && { empresaId }),
                 ...(createdAtWhere && {
                     createdAt: createdAtWhere,
                 }),
@@ -380,9 +395,11 @@ export async function GET(request: Request) {
             },
         });
 
-        const reporteStats = calcStats(tareasReporte, todayKey);
+        let tareasReporteParaVista = tareasReporte;
 
-        const detalleReportesCumplidos: ActivityDetail[] = tareasReporte
+        let reporteStats = calcStats(tareasReporteParaVista, todayKey);
+
+        let detalleReportesCumplidos: ActivityDetail[] = tareasReporteParaVista
             .filter(t => t.estado === 'COMPLETADA')
             .map(t => ({
                 id: `reporte-${t.id}`,
@@ -392,7 +409,7 @@ export async function GET(request: Request) {
                 estado: 'cumplida',
             }));
 
-        const detalleReportesVencidos: ActivityDetail[] = tareasReporte
+        let detalleReportesVencidos: ActivityDetail[] = tareasReporteParaVista
             .filter(t => isOverdue(t, todayKey))
             .map(t => ({
                 id: `reporte-${t.id}`,
@@ -402,7 +419,7 @@ export async function GET(request: Request) {
                 estado: 'vencida',
             }));
 
-        const detalleReportesProximos: ActivityDetail[] = tareasReporte
+        let detalleReportesProximos: ActivityDetail[] = tareasReporteParaVista
             .filter(t => t.estado !== 'COMPLETADA' && !isOverdue(t, todayKey))
             .map(t => ({
                 id: `reporte-${t.id}`,
@@ -413,13 +430,26 @@ export async function GET(request: Request) {
             }));
 
         // Actividades registradas (incluye independientes y dentro de caminatas)
+        const reportesNoProgWhere: any = {
+            OR: allUsersMode
+                ? [creadoPorFilter, { responsableCierreId: (asignadoFilter as any).asignadoId }]
+                : [{ creadoPorId: targetUserId }, { responsableCierreId: targetUserId }],
+            ...(createdAtWhere && { createdAt: createdAtWhere }),
+        };
+
+        if (empresaId) {
+            reportesNoProgWhere.AND = [
+                {
+                    OR: [
+                        { datos: { path: ['empresaId'], equals: empresaId } },
+                        { caminata: { is: { empresaId } } },
+                    ],
+                },
+            ];
+        }
+
         const reportesNoProg = await prisma.reportePeligro.findMany({
-            where: {
-                OR: allUsersMode
-                    ? [creadoPorFilter, { responsableCierreId: (asignadoFilter as any).asignadoId }]
-                    : [{ creadoPorId: targetUserId }, { responsableCierreId: targetUserId }],
-                ...(createdAtWhere && { createdAt: createdAtWhere }),
-            },
+            where: reportesNoProgWhere,
             select: {
                 id: true,
                 caminataId: true,
@@ -459,9 +489,11 @@ export async function GET(request: Request) {
             },
         });
 
-        const tarjetaStats = calcStats(tareasTarjeta, todayKey);
+        let tareasTarjetaParaVista = tareasTarjeta;
 
-        const detalleTarjetasCumplidas: ActivityDetail[] = tareasTarjeta
+        let tarjetaStats = calcStats(tareasTarjetaParaVista, todayKey);
+
+        let detalleTarjetasCumplidas: ActivityDetail[] = tareasTarjetaParaVista
             .filter(t => t.estado === 'COMPLETADA')
             .map(t => ({
                 id: `tarjeta-${t.id}`,
@@ -471,7 +503,7 @@ export async function GET(request: Request) {
                 estado: 'cumplida',
             }));
 
-        const detalleTarjetasVencidas: ActivityDetail[] = tareasTarjeta
+        let detalleTarjetasVencidas: ActivityDetail[] = tareasTarjetaParaVista
             .filter(t => isOverdue(t, todayKey))
             .map(t => ({
                 id: `tarjeta-${t.id}`,
@@ -481,7 +513,7 @@ export async function GET(request: Request) {
                 estado: 'vencida',
             }));
 
-        const detalleTarjetasProximas: ActivityDetail[] = tareasTarjeta
+        let detalleTarjetasProximas: ActivityDetail[] = tareasTarjetaParaVista
             .filter(t => t.estado !== 'COMPLETADA' && !isOverdue(t, todayKey))
             .map(t => ({
                 id: `tarjeta-${t.id}`,
@@ -491,13 +523,26 @@ export async function GET(request: Request) {
                 estado: 'proxima',
             }));
 
+        const tarjetasNoProgWhere: any = {
+            OR: allUsersMode
+                ? [creadoPorFilter, { responsableCierreId: (asignadoFilter as any).asignadoId }]
+                : [{ creadoPorId: targetUserId }, { responsableCierreId: targetUserId }],
+            ...(createdAtWhere && { createdAt: createdAtWhere }),
+        };
+
+        if (empresaId) {
+            tarjetasNoProgWhere.AND = [
+                {
+                    OR: [
+                        { datos: { path: ['empresaId'], equals: empresaId } },
+                        { caminata: { is: { empresaId } } },
+                    ],
+                },
+            ];
+        }
+
         const tarjetasNoProg = await prisma.tarjetaStop.findMany({
-            where: {
-                OR: allUsersMode
-                    ? [creadoPorFilter, { responsableCierreId: (asignadoFilter as any).asignadoId }]
-                    : [{ creadoPorId: targetUserId }, { responsableCierreId: targetUserId }],
-                ...(createdAtWhere && { createdAt: createdAtWhere }),
-            },
+            where: tarjetasNoProgWhere,
             select: {
                 id: true,
                 caminataId: true,
@@ -537,9 +582,11 @@ export async function GET(request: Request) {
             },
         });
 
-        const controlStats = calcStats(tareasControl, todayKey);
+        let tareasControlParaVista = tareasControl;
 
-        const detalleControlesCumplidos: ActivityDetail[] = tareasControl
+        let controlStats = calcStats(tareasControlParaVista, todayKey);
+
+        let detalleControlesCumplidos: ActivityDetail[] = tareasControlParaVista
             .filter(t => t.estado === 'COMPLETADA')
             .map(t => ({
                 id: `control-${t.id}`,
@@ -549,7 +596,7 @@ export async function GET(request: Request) {
                 estado: 'cumplida',
             }));
 
-        const detalleControlesVencidos: ActivityDetail[] = tareasControl
+        let detalleControlesVencidos: ActivityDetail[] = tareasControlParaVista
             .filter(t => isOverdue(t, todayKey))
             .map(t => ({
                 id: `control-${t.id}`,
@@ -559,7 +606,7 @@ export async function GET(request: Request) {
                 estado: 'vencida',
             }));
 
-        const detalleControlesProximos: ActivityDetail[] = tareasControl
+        let detalleControlesProximos: ActivityDetail[] = tareasControlParaVista
             .filter(t => t.estado !== 'COMPLETADA' && !isOverdue(t, todayKey))
             .map(t => ({
                 id: `control-${t.id}`,
@@ -569,12 +616,25 @@ export async function GET(request: Request) {
                 estado: 'proxima',
             }));
 
+        const controlesNoProgWhere: any = {
+            caminataId: null,
+            ...creadoPorFilter,
+            ...(createdAtWhere && { createdAt: createdAtWhere }),
+        };
+
+        if (empresaId) {
+            controlesNoProgWhere.AND = [
+                {
+                    OR: [
+                        { datos: { path: ['empresaId'], equals: empresaId } },
+                        { caminata: { is: { empresaId } } },
+                    ],
+                },
+            ];
+        }
+
         const controlesNoProg = await prisma.controlCalidadART.findMany({
-            where: {
-                caminataId: null,
-                ...creadoPorFilter,
-                ...(createdAtWhere && { createdAt: createdAtWhere }),
-            },
+            where: controlesNoProgWhere,
             select: {
                 id: true,
                 createdAt: true,
@@ -626,6 +686,7 @@ export async function GET(request: Request) {
                 where: {
                     caminataId: null,
                     creadoPorId: { in: [...new Set(completadasReporte.map(t => t.creadoPorId))] },
+                    ...(empresaId && { datos: { path: ['empresaId'], equals: empresaId } }),
                     createdAt: { gte: completadasReporte.reduce((m, t) => t.createdAt < m ? t.createdAt : m, completadasReporte[0].createdAt) },
                 },
                 select: { id: true, creadoPorId: true, createdAt: true },
@@ -634,6 +695,7 @@ export async function GET(request: Request) {
                 where: {
                     caminataId: null,
                     creadoPorId: { in: [...new Set(completadasTarjeta.map(t => t.creadoPorId))] },
+                    ...(empresaId && { datos: { path: ['empresaId'], equals: empresaId } }),
                     createdAt: { gte: completadasTarjeta.reduce((m, t) => t.createdAt < m ? t.createdAt : m, completadasTarjeta[0].createdAt) },
                 },
                 select: { id: true, creadoPorId: true, createdAt: true },
@@ -642,6 +704,7 @@ export async function GET(request: Request) {
                 where: {
                     caminataId: null,
                     creadoPorId: { in: [...new Set(completadasControl.map(t => t.creadoPorId))] },
+                    ...(empresaId && { datos: { path: ['empresaId'], equals: empresaId } }),
                     createdAt: { gte: completadasControl.reduce((m, t) => t.createdAt < m ? t.createdAt : m, completadasControl[0].createdAt) },
                 },
                 select: { id: true, creadoPorId: true, createdAt: true },
@@ -668,6 +731,22 @@ export async function GET(request: Request) {
         const reportesNoProgFiltrados = reportesNoProg.filter(r => !matchedReporteIds.has(r.id));
         reportesCumplidos = reportesNoProgFiltrados.length;
 
+        if (empresaId) {
+            tareasReporteParaVista = tareasReporte.filter(
+                (t) => t.estado === 'COMPLETADA' && reporteMatchByTaskId.has(t.id),
+            );
+            reporteStats = calcStats(tareasReporteParaVista, todayKey);
+            detalleReportesCumplidos = tareasReporteParaVista.map(t => ({
+                id: `reporte-${t.id}`,
+                tipo: t.tipo,
+                tarea: t.descripcion?.trim() || `Reporte de peligro #${t.id}`,
+                usuario: normalizeUserName(t.asignado),
+                estado: 'cumplida',
+            }));
+            detalleReportesVencidos = [];
+            detalleReportesProximos = [];
+        }
+
         // Evita duplicar tarjetas: si una Tarjeta Alto Stop ya fue emparejada
         // con una tarea programada COMPLETADA, no debe aparecer como "no programada".
         const tarjetaMatchByTaskId = new Map<number, number>();
@@ -684,6 +763,22 @@ export async function GET(request: Request) {
         const tarjetasNoProgFiltradas = tarjetasNoProg.filter(t => !matchedTarjetaIds.has(t.id));
         tarjetasCumplidas = tarjetasNoProgFiltradas.length;
 
+        if (empresaId) {
+            tareasTarjetaParaVista = tareasTarjeta.filter(
+                (t) => t.estado === 'COMPLETADA' && tarjetaMatchByTaskId.has(t.id),
+            );
+            tarjetaStats = calcStats(tareasTarjetaParaVista, todayKey);
+            detalleTarjetasCumplidas = tareasTarjetaParaVista.map(t => ({
+                id: `tarjeta-${t.id}`,
+                tipo: t.tipo,
+                tarea: t.descripcion?.trim() || `Tarjeta Stop #${t.id}`,
+                usuario: normalizeUserName(t.asignado),
+                estado: 'cumplida',
+            }));
+            detalleTarjetasVencidas = [];
+            detalleTarjetasProximas = [];
+        }
+
         // Evita duplicar controles: si un Control ART ya fue emparejado con una
         // tarea programada COMPLETADA, no debe aparecer también como "no programada".
         const controlMatchByTaskId = new Map<number, number>();
@@ -699,6 +794,22 @@ export async function GET(request: Request) {
 
         const controlesNoProgFiltrados = controlesNoProg.filter(c => !matchedControlIds.has(c.id));
         controlesCumplidos = controlesNoProgFiltrados.length;
+
+        if (empresaId) {
+            tareasControlParaVista = tareasControl.filter(
+                (t) => t.estado === 'COMPLETADA' && controlMatchByTaskId.has(t.id),
+            );
+            controlStats = calcStats(tareasControlParaVista, todayKey);
+            detalleControlesCumplidos = tareasControlParaVista.map(t => ({
+                id: `control-${t.id}`,
+                tipo: t.tipo,
+                tarea: t.descripcion?.trim() || `Control ART #${t.id}`,
+                usuario: normalizeUserName(t.asignado),
+                estado: 'cumplida',
+            }));
+            detalleControlesVencidos = [];
+            detalleControlesProximos = [];
+        }
 
         // Detalles por tipo para historial expandible ────────────────────
         const detallePorTipo = {
@@ -722,7 +833,7 @@ export async function GET(request: Request) {
                 })),
             },
             reporte_peligro: {
-                programadas: tareasReporte.map(t => {
+                programadas: tareasReporteParaVista.map(t => {
                     let urlDetalle: string | null = null;
                     if (t.estado === 'COMPLETADA') {
                         const matchId = reporteMatchByTaskId.get(t.id) ?? null;
@@ -750,7 +861,7 @@ export async function GET(request: Request) {
                 })),
             },
             tarjeta_stop: {
-                programadas: tareasTarjeta.map(t => {
+                programadas: tareasTarjetaParaVista.map(t => {
                     let urlDetalle: string | null = null;
                     if (t.estado === 'COMPLETADA') {
                         const matchId = tarjetaMatchByTaskId.get(t.id) ?? null;
@@ -778,7 +889,7 @@ export async function GET(request: Request) {
                 })),
             },
             control_art: {
-                programadas: tareasControl.map(t => {
+                programadas: tareasControlParaVista.map(t => {
                     let urlDetalle: string | null = null;
                     if (t.estado === 'COMPLETADA') {
                         const matchId = controlMatchByTaskId.get(t.id) ?? null;
@@ -811,7 +922,7 @@ export async function GET(request: Request) {
             buildRow('reporte_peligro', 'Reporte de Peligro', reporteStats, reportesCumplidos),
             buildRow('tarjeta_stop', 'Tarjeta Alto Stop', tarjetaStats, tarjetasCumplidas),
             buildRow('control_art', 'Control de Calidad ART', controlStats, controlesCumplidos),
-        ];
+        ].filter((row) => !empresaId || row.totalActividades > 0);
 
         const detalles = {
             cumplidas: [

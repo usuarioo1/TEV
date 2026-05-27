@@ -54,6 +54,7 @@ export default function ServiciosPorEstadoModal({
                                     <tr>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Servicio</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Estado</th>
+                                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Empresa</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Origen / Destino</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Operario</th>
                                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Coordinador</th>
@@ -73,6 +74,7 @@ export default function ServiciosPorEstadoModal({
                                                 <p className="text-xs text-gray-500 mt-0.5">{servicio.descripcion}</p>
                                             </td>
                                             <td className="px-3 py-2 text-gray-700">{servicio.estado}</td>
+                                            <td className="px-3 py-2 text-gray-700">{servicio.empresa?.nombre || 'Sin empresa'}</td>
                                             <td className="px-3 py-2 text-gray-700">{servicio.origen} → {servicio.destino}</td>
                                             <td className="px-3 py-2 text-gray-700">{servicio.operario?.name || servicio.operario?.username || 'Sin operario'}</td>
                                             <td className="px-3 py-2 text-gray-700">{servicio.coordinador?.name || servicio.coordinador?.username || 'Sin coordinador'}</td>

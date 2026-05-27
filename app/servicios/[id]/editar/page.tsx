@@ -1,4 +1,5 @@
 import { redirect, notFound } from 'next/navigation';
+import Link from 'next/link';
 import { getSession } from '@/lib/session';
 import { requireRole } from '@/lib/permissions';
 import { ROLES } from '@/lib/auth';
@@ -43,9 +44,23 @@ export default async function EditarServicioPage({ params }: PageProps) {
         redirect('/unauthorized');
     }
 
-    // Verificar que el servicio esté en un estado editable
-    const estadosEditables = ['PENDIENTE', 'ASIGNADO'];
-    if (!estadosEditables.includes(servicio.estado)) {
+    const estadosEdicionCompleta = ['PENDIENTE', 'ASIGNADO'];
+    const estadosEdicionEmpresaPostAceptacion = [
+        'ACEPTADO',
+        'EN_CHECKLIST',
+        'PENDIENTE_APROBACION',
+        'APROBADO',
+        'EN_EJECUCION',
+        'COMPLETADO',
+    ];
+
+    const permiteEdicionCompleta = estadosEdicionCompleta.includes(servicio.estado);
+    const esCoordinadorPropietario = session.rol === ROLES.COORDINADOR && servicio.coordinadorId === session.id;
+    const permiteEdicionSoloEmpresa =
+        estadosEdicionEmpresaPostAceptacion.includes(servicio.estado)
+        && esCoordinadorPropietario;
+
+    if (!permiteEdicionCompleta && !permiteEdicionSoloEmpresa) {
         return (
             <div className="min-h-screen bg-gray-50 py-8">
                 <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -60,15 +75,16 @@ export default async function EditarServicioPage({ params }: PageProps) {
                                 </h3>
                                 <p className="mt-2 text-sm text-red-700">
                                     Este servicio está en estado <strong>{servicio.estado}</strong> y ya no puede ser editado.
-                                    Solo se pueden editar servicios en estado PENDIENTE o ASIGNADO, antes de que el operario los acepte.
+                                    Solo los servicios en estado PENDIENTE o ASIGNADO permiten edición completa.
+                                    Después de la aceptación, únicamente el coordinador dueño del servicio puede editar la empresa.
                                 </p>
                                 <div className="mt-4">
-                                    <a
+                                    <Link
                                         href="/servicios"
                                         className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200"
                                     >
                                         Volver a Servicios
-                                    </a>
+                                    </Link>
                                 </div>
                             </div>
                         </div>
@@ -77,6 +93,8 @@ export default async function EditarServicioPage({ params }: PageProps) {
             </div>
         );
     }
+
+    const modoEdicion: 'full' | 'empresa-only' = permiteEdicionCompleta ? 'full' : 'empresa-only';
 
     // Obtener lista de operarios disponibles
     const operarios = await prisma.user.findMany({
@@ -93,6 +111,16 @@ export default async function EditarServicioPage({ params }: PageProps) {
         },
     });
 
+    const empresas = await prisma.empresa.findMany({
+        select: {
+            id: true,
+            nombre: true,
+        },
+        orderBy: {
+            nombre: 'asc',
+        },
+    });
+
     return (
         <div className="min-h-screen bg-gray-50 py-8">
             <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -102,12 +130,27 @@ export default async function EditarServicioPage({ params }: PageProps) {
                         Editar Servicio
                     </h1>
                     <p className="mt-2 text-sm text-gray-600">
-                        Modifica los detalles del servicio <strong>{servicio.codigo}</strong>
+                        {modoEdicion === 'full'
+                            ? (
+                                <>
+                                    Modifica los detalles del servicio <strong>{servicio.codigo}</strong>
+                                </>
+                            )
+                            : (
+                                <>
+                                    Edita únicamente la empresa del servicio <strong>{servicio.codigo}</strong>
+                                </>
+                            )}
                     </p>
                 </div>
 
                 {/* Formulario */}
-                <EditarServicioForm servicio={servicio} operarios={operarios} />
+                <EditarServicioForm
+                    servicio={servicio}
+                    operarios={operarios}
+                    empresas={empresas}
+                    editMode={modoEdicion}
+                />
             </div>
         </div>
     );
