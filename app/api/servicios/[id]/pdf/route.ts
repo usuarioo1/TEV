@@ -26,6 +26,9 @@ export async function GET(
     const servicio = await prisma.servicio.findUnique({
         where: { id: servicioId },
         include: {
+            empresa: {
+                select: { id: true, nombre: true },
+            },
             operario: {
                 select: { id: true, name: true, username: true, email: true },
             },

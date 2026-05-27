@@ -1047,6 +1047,12 @@ export function ServicioPDF({ servicio }: { servicio: any }) {
                     {/* Info general */}
                     <View style={styles.infoGrid}>
                         <View style={styles.infoCellThird}>
+                            <Text style={styles.infoLabel}>EMPRESA</Text>
+                            <Text style={styles.infoValue}>
+                                {servicio.empresa?.nombre || '—'}
+                            </Text>
+                        </View>
+                        <View style={styles.infoCellThird}>
                             <Text style={styles.infoLabel}>OPERARIO</Text>
                             <Text style={styles.infoValue}>
                                 {servicio.operario?.name || servicio.operario?.username || '—'}
