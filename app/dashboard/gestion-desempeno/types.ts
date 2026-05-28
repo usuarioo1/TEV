@@ -27,11 +27,6 @@ export interface SimpleUser {
     rol: string;
 }
 
-export interface EmpresaOption {
-    id: number;
-    nombre: string;
-}
-
 export interface GestionDesempenoMetrics {
     totalProgramadas: number;
     totalCumplidas: number;

@@ -109,19 +109,28 @@ export async function POST(request: NextRequest) {
 
         // Extraer el responsableCierre y tareaId del body
         const { responsableCierre, empresaId, _tareaId, ...datosTarjeta } = body;
+        let datosTarjetaConEmpresa = { ...datosTarjeta };
 
-        const empresaIdParsed = Number.parseInt(String(empresaId ?? ''), 10);
-        if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
-            return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
-        }
+        if (empresaId !== undefined && empresaId !== null && String(empresaId).trim() !== '') {
+            const empresaIdParsed = Number.parseInt(String(empresaId), 10);
+            if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+                return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+            }
 
-        const empresa = await prisma.empresa.findUnique({
-            where: { id: empresaIdParsed },
-            select: { id: true, nombre: true },
-        });
+            const empresa = await prisma.empresa.findUnique({
+                where: { id: empresaIdParsed },
+                select: { id: true, nombre: true },
+            });
 
-        if (!empresa) {
-            return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+            if (!empresa) {
+                return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+            }
+
+            datosTarjetaConEmpresa = {
+                ...datosTarjetaConEmpresa,
+                empresaId: empresa.id,
+                empresaNombre: empresa.nombre,
+            };
         }
 
         // Si viene de una tarea asignada, el creador oficial es el prevencionista que asignó la tarea
@@ -139,11 +148,6 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        const datosTarjetaConEmpresa = {
-            ...datosTarjeta,
-            empresaId: empresa.id,
-            empresaNombre: empresa.nombre,
-        };
         console.log('🔍 Creando tarjeta:', {
             creadoPorId,
             responsableCierre: responsableCierre,

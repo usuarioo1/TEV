@@ -72,19 +72,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
 
         if (tarea.tipo === 'caminata') {
-            const empresaIdParsed = Number.parseInt(String((body as { empresaId?: unknown })?.empresaId ?? ''), 10);
+            const empresaIdValue = (body as { empresaId?: unknown })?.empresaId;
+            let empresaIdParaCaminata: number | null = null;
 
-            if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
-                return NextResponse.json({ error: 'Debes seleccionar una empresa para iniciar la caminata' }, { status: 400 });
-            }
+            if (empresaIdValue !== undefined && empresaIdValue !== null && String(empresaIdValue).trim() !== '') {
+                const empresaIdParsed = Number.parseInt(String(empresaIdValue), 10);
 
-            const empresa = await prisma.empresa.findUnique({
-                where: { id: empresaIdParsed },
-                select: { id: true },
-            });
+                if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+                    return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+                }
 
-            if (!empresa) {
-                return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+                const empresa = await prisma.empresa.findUnique({
+                    where: { id: empresaIdParsed },
+                    select: { id: true },
+                });
+
+                if (!empresa) {
+                    return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+                }
+
+                empresaIdParaCaminata = empresa.id;
             }
 
             const result = await prisma.$transaction(async (tx) => {
@@ -101,7 +108,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                         zona: 'Pendiente por definir',
                         faena: 'Pendiente por definir',
                         actividad: tarea.descripcion?.trim() || 'Actividad pendiente por definir',
-                        empresaId: empresa.id,
+                        empresaId: empresaIdParaCaminata,
                         coordinadorId: tarea.creadoPorId,
                         asignadoId: tarea.asignadoId,
                         estado: 'PENDIENTE',

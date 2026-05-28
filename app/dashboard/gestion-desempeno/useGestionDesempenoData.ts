@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type {
     ActivityDetail,
-    EmpresaOption,
     GestionDesempenoMetrics,
     SimpleUser,
     TablaActividadRow,
@@ -13,7 +12,6 @@ interface FiltroState {
     desde: string;
     hasta: string;
     userId: string;
-    empresaId: string;
 }
 
 const EMPTY_DETAILS: { cumplidas: ActivityDetail[]; vencidas: ActivityDetail[] } = {
@@ -25,19 +23,16 @@ export function useGestionDesempenoData() {
     const [rows, setRows] = useState<TablaActividadRow[]>([]);
     const [detalles, setDetalles] = useState(EMPTY_DETAILS);
     const [users, setUsers] = useState<SimpleUser[]>([]);
-    const [empresas, setEmpresas] = useState<EmpresaOption[]>([]);
     const [canFilterByUser, setCanFilterByUser] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [fechaDesde, setFechaDesde] = useState('');
     const [fechaHasta, setFechaHasta] = useState('');
     const [selectedUserId, setSelectedUserId] = useState('');
-    const [selectedEmpresaId, setSelectedEmpresaId] = useState('');
     const [filtro, setFiltro] = useState<FiltroState>({
         desde: '',
         hasta: '',
         userId: '',
-        empresaId: '',
     });
     const [detalleActivo, setDetalleActivo] = useState<'cumplidas' | 'vencidas' | null>(null);
 
@@ -84,44 +79,6 @@ export function useGestionDesempenoData() {
     useEffect(() => {
         let mounted = true;
 
-        const fetchEmpresas = async () => {
-            try {
-                const response = await fetch('/api/empresas');
-                const payload = await response.json();
-                if (!response.ok || !mounted || !Array.isArray(payload)) return;
-
-                const empresasNormalizadas = payload
-                    .map((empresa) => ({
-                        id: Number(empresa?.id),
-                        nombre:
-                            typeof empresa?.nombre === 'string'
-                                ? empresa.nombre
-                                : '',
-                    }))
-                    .filter(
-                        (empresa): empresa is EmpresaOption =>
-                            Number.isInteger(empresa.id) &&
-                            empresa.id > 0 &&
-                            empresa.nombre.trim().length > 0,
-                    );
-
-                setEmpresas(empresasNormalizadas);
-            } catch {
-                if (!mounted) return;
-                setEmpresas([]);
-            }
-        };
-
-        fetchEmpresas();
-
-        return () => {
-            mounted = false;
-        };
-    }, []);
-
-    useEffect(() => {
-        let mounted = true;
-
         const fetchRows = async () => {
             setLoading(true);
             setError(null);
@@ -131,7 +88,6 @@ export function useGestionDesempenoData() {
                 if (filtro.desde) params.set('fechaInicio', filtro.desde);
                 if (filtro.hasta) params.set('fechaFin', filtro.hasta);
                 if (canFilterByUser && filtro.userId) params.set('userId', filtro.userId);
-                if (filtro.empresaId) params.set('empresaId', filtro.empresaId);
 
                 const url = params.toString()
                     ? `/api/dashboard/tabla-actividades?${params.toString()}`
@@ -182,7 +138,6 @@ export function useGestionDesempenoData() {
             desde: fechaDesde,
             hasta: fechaHasta,
             userId: canFilterByUser ? selectedUserId : '',
-            empresaId: selectedEmpresaId,
         });
     };
 
@@ -190,8 +145,7 @@ export function useGestionDesempenoData() {
         setFechaDesde('');
         setFechaHasta('');
         setSelectedUserId('');
-        setSelectedEmpresaId('');
-        setFiltro({ desde: '', hasta: '', userId: '', empresaId: '' });
+        setFiltro({ desde: '', hasta: '', userId: '' });
         setDetalleActivo(null);
     };
 
@@ -243,21 +197,18 @@ export function useGestionDesempenoData() {
         rows,
         detalles,
         users,
-        empresas,
         canFilterByUser,
         loading,
         error,
         fechaDesde,
         fechaHasta,
         selectedUserId,
-        selectedEmpresaId,
         filtro,
         detalleActivo,
         metrics,
         setFechaDesde,
         setFechaHasta,
         setSelectedUserId,
-        setSelectedEmpresaId,
         aplicarFiltro,
         limpiarFiltro,
         toggleDetalle,

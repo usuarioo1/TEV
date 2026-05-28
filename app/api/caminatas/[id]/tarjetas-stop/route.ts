@@ -39,26 +39,29 @@ export async function POST(
 
         // Extraer el responsableCierre del body
         const { responsableCierre, empresaId, ...datosTarjeta } = body;
+        let datosTarjetaConEmpresa = { ...datosTarjeta };
 
-        const empresaIdParsed = Number.parseInt(String(empresaId ?? ''), 10);
-        if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
-            return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+        if (empresaId !== undefined && empresaId !== null && String(empresaId).trim() !== '') {
+            const empresaIdParsed = Number.parseInt(String(empresaId), 10);
+            if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+                return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+            }
+
+            const empresa = await prisma.empresa.findUnique({
+                where: { id: empresaIdParsed },
+                select: { id: true, nombre: true },
+            });
+
+            if (!empresa) {
+                return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+            }
+
+            datosTarjetaConEmpresa = {
+                ...datosTarjetaConEmpresa,
+                empresaId: empresa.id,
+                empresaNombre: empresa.nombre,
+            };
         }
-
-        const empresa = await prisma.empresa.findUnique({
-            where: { id: empresaIdParsed },
-            select: { id: true, nombre: true },
-        });
-
-        if (!empresa) {
-            return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
-        }
-
-        const datosTarjetaConEmpresa = {
-            ...datosTarjeta,
-            empresaId: empresa.id,
-            empresaNombre: empresa.nombre,
-        };
 
         // Crear tarjeta stop
         const tarjeta = await prisma.tarjetaStop.create({

@@ -40,26 +40,29 @@ export async function POST(
 
         // Extraer el responsableCierre del body
         const { responsableCierre, empresaId, ...datosReporte } = body;
+        let datosReporteConEmpresa = { ...datosReporte };
 
-        const empresaIdParsed = Number.parseInt(String(empresaId ?? ''), 10);
-        if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
-            return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+        if (empresaId !== undefined && empresaId !== null && String(empresaId).trim() !== '') {
+            const empresaIdParsed = Number.parseInt(String(empresaId), 10);
+            if (!Number.isInteger(empresaIdParsed) || empresaIdParsed <= 0) {
+                return NextResponse.json({ error: 'Empresa invalida' }, { status: 400 });
+            }
+
+            const empresa = await prisma.empresa.findUnique({
+                where: { id: empresaIdParsed },
+                select: { id: true, nombre: true },
+            });
+
+            if (!empresa) {
+                return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+            }
+
+            datosReporteConEmpresa = {
+                ...datosReporteConEmpresa,
+                empresaId: empresa.id,
+                empresaNombre: empresa.nombre,
+            };
         }
-
-        const empresa = await prisma.empresa.findUnique({
-            where: { id: empresaIdParsed },
-            select: { id: true, nombre: true },
-        });
-
-        if (!empresa) {
-            return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
-        }
-
-        const datosReporteConEmpresa = {
-            ...datosReporte,
-            empresaId: empresa.id,
-            empresaNombre: empresa.nombre,
-        };
 
         // Crear reporte de peligro
         const reporte = await prisma.reportePeligro.create({
