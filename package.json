@@ -1,0 +1,58 @@
+{
+  "name": "nextminer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "dev:clean": "bash restart-dev.sh",
+    "build": "next build",
+    "postinstall": "prisma generate",
+    "start": "next start",
+    "lint": "eslint",
+    "db:conexiones": "tsx scripts/estado-conexiones-bd.ts",
+    "db:check:drift": "prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script --exit-code",
+    "db:fix:drift:safe": "tsx scripts/fix-drift-prisma-safe.ts",
+    "db:fix:alertas-caminatas": "tsx scripts/fix-columnas-alertas-caminatas.ts",
+    "limpiar:alertas": "tsx scripts/limpiar-alertas.ts",
+    "limpiar:caminatas": "tsx scripts/limpiar-caminatas.ts",
+    "inyectar:usuarios:dac": "tsx scripts/inyectar-usuarios-dac.ts",
+    "reset:operativo:dry-run": "tsx scripts/reset-operativo.ts --dry-run",
+    "reset:operativo": "tsx scripts/reset-operativo.ts --confirm"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.4.1",
+    "@prisma/client": "^7.4.1",
+    "@react-pdf/renderer": "^4.3.2",
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.9.0",
+    "dotenv": "^17.3.1",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^0.577.0",
+    "next": "16.1.6",
+    "next-cloudinary": "^6.17.5",
+    "pg": "^8.18.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "resend": "^6.12.2",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^3.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20",
+    "@types/pg": "^8.16.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "1.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "prisma": "^7.4.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

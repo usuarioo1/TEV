@@ -1,0 +1,429 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                      Int                    @id @default(autoincrement())
+  username                String                 @unique
+  password                String
+  rol                     String
+  email                   String?                @unique
+  name                    String?
+  rut                     String?
+  empresa                 String?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  analisisRiesgoAprobados AnalisisRiesgo[]
+  aprobaciones            AprobacionSupervisor[]
+  caminatasAcompanante    CaminataSeguridad[]    @relation("AcompananteCaminata")
+  caminatasAsignadas      CaminataSeguridad[]    @relation("AsignadoCaminata")
+  caminatasCreadas        CaminataSeguridad[]    @relation("CoordinadorCaminata")
+  comentariosHallazgo     ComentarioHallazgo[]
+  comentariosNoConformidad ComentarioNoConformidad[]
+  controlesCalidadART     ControlCalidadART[]
+  posts                   Post[]
+  reportesPeligro         ReportePeligro[]       @relation("ReportesCreadosPor")
+  reportesResponsable     ReportePeligro[]       @relation("ReportesResponsable")
+  reportesVerificacion    ReportePeligro[]       @relation("ReportesVerificacion")
+  serviciosCreados        Servicio[]             @relation("Coordinador")
+  serviciosAsignados      Servicio[]             @relation("OperarioAsignado")
+  tarjetasStop            TarjetaStop[]          @relation("TarjetasCreadosPor")
+  tarjetasResponsable     TarjetaStop[]          @relation("TarjetasResponsable")
+  tareasAsignadas         TareaAsignada[]        @relation("TareasAsignadas")
+  tareasCreadas           TareaAsignada[]        @relation("TareasCreadas")
+}
+
+model Post {
+  id        Int     @id @default(autoincrement())
+  title     String
+  content   String?
+  published Boolean @default(false)
+  authorId  Int
+  author    User    @relation(fields: [authorId], references: [id])
+}
+
+model Empresa {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  servicios Servicio[]
+  caminatas CaminataSeguridad[]
+}
+
+model Servicio {
+  id                    Int                    @id @default(autoincrement())
+  codigo                String                 @unique
+  descripcion           String
+  origen                String
+  destino               String
+  telefonoOrigen        String?
+  telefonoDestino       String?
+  fechaAsignacion       DateTime               @default(now())
+  fechaAceptacion       DateTime?
+  fechaRechazo          DateTime?
+  fechaInicio           DateTime?
+  fechaFinalizacion     DateTime?
+  estado                EstadoServicio         @default(PENDIENTE)
+  empresaId             Int?
+  operarioId            Int?
+  coordinadorId         Int
+  observaciones         String?
+  motivoRechazo         String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  analisisRiesgo        AnalisisRiesgo?
+  aprobacion            AprobacionSupervisor?
+  checklistEquipo       ChecklistEquipo?
+  checklistFatiga       ChecklistFatiga?
+  checklistTractoCamion ChecklistTractoCamion?
+  guiaDespacho          GuiaDespacho?
+  hallazgos             Hallazgo[]
+  noConformidades       NoConformidad[]
+  empresa               Empresa?               @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  coordinador           User                   @relation("Coordinador", fields: [coordinadorId], references: [id])
+  operario              User?                  @relation("OperarioAsignado", fields: [operarioId], references: [id])
+
+  @@index([empresaId])
+}
+
+model ChecklistEquipo {
+  id                  Int      @id @default(autoincrement())
+  servicioId          Int      @unique
+  marcaModelo         String
+  patente             String
+  anio                String
+  horometro           String?
+  kilometraje         String?
+  conductor           String
+  fecha               DateTime
+  hora                String
+  items               Json
+  observaciones       String?
+  equipoEnCondiciones Boolean
+  completado          Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  servicio            Servicio @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+}
+
+model ChecklistTractoCamion {
+  id                     Int      @id @default(autoincrement())
+  servicioId             Int      @unique
+  patente                String
+  anio                   String
+  nombreConductor        String
+  rut                    String
+  fecha                  DateTime
+  kilometraje            String
+  items                  Json
+  observacionesGenerales String?
+  equipoEnCondiciones    Boolean
+  completado             Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  servicio               Servicio @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+}
+
+model ChecklistFatiga {
+  id                Int      @id @default(autoincrement())
+  servicioId        Int      @unique
+  fecha             DateTime
+  hora              String
+  lugarControl      String
+  nombreConductor   String
+  rut               String
+  licenciaConducir  String?
+  items             Json
+  aptoParaTrabajar  Boolean
+  observaciones     String?
+  requiereReemplazo Boolean  @default(false)
+  completado        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  servicio          Servicio @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+}
+
+model AnalisisRiesgo {
+  id                      Int       @id @default(autoincrement())
+  servicioId              Int       @unique
+  tareaRealizar           String
+  fecha                   DateTime
+  empresaResponsable      String
+  lugarAreaTrabajo        String
+  tareaNormadaPor         String
+  nombreDocumento         String?
+  preguntasIntegrantes    Json
+  controlSupervisor       String?
+  riesgosPotenciales      Json
+  condicionesClimaticas   Json
+  eppElementos            Json
+  etapasTrabajo           Json
+  instruccionesEspeciales String?
+  grupoTrabajo            Json      @default("[]")
+  supervisorResponsableId Int?
+  fechaAprobacion         DateTime?
+  riesgosControlados      Boolean
+  completado              Boolean   @default(false)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  servicio                Servicio  @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+  supervisorResponsable   User?     @relation(fields: [supervisorResponsableId], references: [id])
+}
+
+model AprobacionSupervisor {
+  id                      Int      @id @default(autoincrement())
+  servicioId              Int      @unique
+  supervisorId            Int
+  checklistEquipoOk       Boolean
+  checklistTractoCamionOk Boolean  @default(true)
+  checklistFatigaOk       Boolean
+  analisisRiesgoOk        Boolean
+  aprobado                Boolean
+  observaciones           String?
+  motivoRechazo           String?
+  firmaDigital            String
+  fechaAprobacion         DateTime @default(now())
+  createdAt               DateTime @default(now())
+  servicio                Servicio @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+  supervisor              User     @relation(fields: [supervisorId], references: [id])
+}
+
+model GuiaDespacho {
+  id             Int      @id @default(autoincrement())
+  servicioId     Int      @unique
+  numeroGuia     String   @unique
+  kmInicial      Float
+  kmFinal        Float
+  horaInicio     DateTime
+  horaTermino    DateTime
+  tipoCarga      String
+  pesoCarga      Float?
+  nombreReceptor String
+  rutReceptor    String?
+  firmaReceptor  String?
+  observaciones  String?
+  incidentes     String?
+  createdAt      DateTime @default(now())
+  servicio       Servicio @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+}
+
+model TractoCamion {
+  id        Int      @id @default(autoincrement())
+  patente   String   @unique
+  marca     String
+  año      Int
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Semiremolque {
+  id        Int      @id @default(autoincrement())
+  patente   String   @unique
+  tipo      String
+  marca     String
+  año      Int
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CaminataSeguridad {
+  id                  Int                 @id @default(autoincrement())
+  codigo              String              @unique
+  zona                String
+  faena               String
+  actividad           String
+  empresaId           Int?
+  coordinadorId       Int
+  asignadoId          Int
+  acompananteId       Int?
+  estado              EstadoCaminata      @default(PENDIENTE)
+  observaciones       String?
+  tieneFotografias    Boolean             @default(false)
+  tieneDocumentos     Boolean             @default(false)
+  fechaProgramada     DateTime?
+  fechaLimite         DateTime?
+  fechaCreacion       DateTime            @default(now())
+  fechaCompletacion   DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  empresa             Empresa?            @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  acompanante         User?               @relation("AcompananteCaminata", fields: [acompananteId], references: [id])
+  asignado            User                @relation("AsignadoCaminata", fields: [asignadoId], references: [id])
+  coordinador         User                @relation("CoordinadorCaminata", fields: [coordinadorId], references: [id])
+  controlesCalidadART ControlCalidadART[]
+  reportesPeligro     ReportePeligro[]
+  tarjetasStop        TarjetaStop[]
+
+  @@index([empresaId])
+}
+
+model ReportePeligro {
+  id                        Int                @id @default(autoincrement())
+  caminataId                Int?
+  creadoPorId               Int                @default(1)
+  estado                    EstadoAlerta       @default(PENDIENTE)
+  responsableCierreId       Int?
+  fechaCierre               DateTime?
+  comentarioCierre          String?
+  imagenCierre              String?
+  responsableVerificacionId Int?
+  fechaVerificacion         DateTime?
+  comentarioVerificacion    String?
+  imagenVerificacion        String?
+  datos                     Json
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+  caminata                  CaminataSeguridad? @relation(fields: [caminataId], references: [id], onDelete: Cascade)
+  creadoPor                 User               @relation("ReportesCreadosPor", fields: [creadoPorId], references: [id])
+  responsableCierre         User?              @relation("ReportesResponsable", fields: [responsableCierreId], references: [id])
+  responsableVerificacion   User?              @relation("ReportesVerificacion", fields: [responsableVerificacionId], references: [id])
+}
+
+model TarjetaStop {
+  id                  Int                @id @default(autoincrement())
+  caminataId          Int?
+  creadoPorId         Int                @default(1)
+  estado              EstadoAlerta       @default(PENDIENTE)
+  responsableCierreId Int?
+  fechaCierre         DateTime?
+  comentarioCierre    String?
+  imagenCierre        String?
+  datos               Json
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  caminata            CaminataSeguridad? @relation(fields: [caminataId], references: [id], onDelete: Cascade)
+  creadoPor           User               @relation("TarjetasCreadosPor", fields: [creadoPorId], references: [id])
+  responsableCierre   User?              @relation("TarjetasResponsable", fields: [responsableCierreId], references: [id])
+}
+
+model ControlCalidadART {
+  id          Int                @id @default(autoincrement())
+  caminataId  Int?
+  creadoPorId Int                @default(1)
+  datos       Json
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  caminata    CaminataSeguridad? @relation(fields: [caminataId], references: [id], onDelete: Cascade)
+  creadoPor   User               @relation(fields: [creadoPorId], references: [id])
+}
+
+model TareaAsignada {
+  id          Int      @id @default(autoincrement())
+  tipo        String   // 'reporte_peligro' | 'tarjeta_stop' | 'control_art'
+  fechaProgramada DateTime?
+  fechaLimite DateTime?
+  descripcion String?
+  asignadoId  Int
+  creadoPorId Int
+  estado      String   @default("PENDIENTE") // PENDIENTE | COMPLETADA
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  asignado    User     @relation("TareasAsignadas", fields: [asignadoId], references: [id])
+  creadoPor   User     @relation("TareasCreadas", fields: [creadoPorId], references: [id])
+}
+
+enum EstadoServicio {
+  PENDIENTE
+  ASIGNADO
+  ACEPTADO
+  RECHAZADO
+  EN_CHECKLIST
+  PENDIENTE_APROBACION
+  APROBADO
+  EN_EJECUCION
+  COMPLETADO
+  CANCELADO
+}
+
+enum EstadoCaminata {
+  PENDIENTE
+  EN_PROCESO
+  COMPLETADA
+  CANCELADA
+}
+
+enum EstadoAlerta {
+  PENDIENTE
+  EN_REVISION
+  PENDIENTE_VERIFICACION
+  CERRADO
+}
+
+model NoConformidad {
+  id             Int                       @id @default(autoincrement())
+  servicioId     Int
+  checklistTipo  TipoChecklistNC
+  seccion        String
+  itemNombre     String
+  observacion    String?
+  imagenes       Json                      @default("[]")
+  responsableRol String
+  estado         EstadoNoConformidad       @default(ABIERTA)
+  comentarios    ComentarioNoConformidad[]
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  servicio       Servicio                  @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+
+  @@unique([servicioId, checklistTipo, seccion, itemNombre])
+}
+
+model Hallazgo {
+  id             Int                 @id @default(autoincrement())
+  servicioId     Int
+  checklistTipo  TipoChecklistNC
+  seccion        String
+  itemNombre     String
+  observacion    String?
+  imagenes       Json                @default("[]")
+  responsableRol String
+  estado         EstadoHallazgo      @default(ABIERTA)
+  comentarios    ComentarioHallazgo[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  servicio       Servicio            @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+
+  @@unique([servicioId, checklistTipo, seccion, itemNombre])
+}
+
+model ComentarioNoConformidad {
+  id              Int           @id @default(autoincrement())
+  noConformidadId Int
+  autorId         Int
+  contenido       String
+  createdAt       DateTime      @default(now())
+  noConformidad   NoConformidad @relation(fields: [noConformidadId], references: [id], onDelete: Cascade)
+  autor           User          @relation(fields: [autorId], references: [id])
+}
+
+model ComentarioHallazgo {
+  id         Int      @id @default(autoincrement())
+  hallazgoId Int
+  autorId    Int
+  contenido  String
+  createdAt  DateTime @default(now())
+  hallazgo   Hallazgo @relation(fields: [hallazgoId], references: [id], onDelete: Cascade)
+  autor      User     @relation(fields: [autorId], references: [id])
+}
+
+enum TipoChecklistNC {
+  TRACTO_CAMION
+  SEMIREMOLQUE
+}
+
+enum EstadoNoConformidad {
+  ABIERTA
+  CERRADA
+}
+
+enum EstadoHallazgo {
+  ABIERTA
+  CERRADA
+}
