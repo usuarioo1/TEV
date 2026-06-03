@@ -45,6 +45,60 @@ $$;
 
         step('Alineando foreign keys con ON DELETE SET NULL en alertas/caminatas');
         await pool.query(`
+    ALTER TABLE "CaminataSeguridad"
+    ADD COLUMN IF NOT EXISTS "acompananteId" INTEGER,
+    ADD COLUMN IF NOT EXISTS "fechaProgramada" TIMESTAMP(3);
+        `);
+
+        await pool.query(`
+    ALTER TABLE "ReportePeligro"
+    ADD COLUMN IF NOT EXISTS "comentarioCierre" TEXT,
+    ADD COLUMN IF NOT EXISTS "comentarioVerificacion" TEXT,
+    ADD COLUMN IF NOT EXISTS "estado" "EstadoAlerta",
+    ADD COLUMN IF NOT EXISTS "fechaCierre" TIMESTAMP(3),
+    ADD COLUMN IF NOT EXISTS "fechaVerificacion" TIMESTAMP(3),
+    ADD COLUMN IF NOT EXISTS "imagenCierre" TEXT,
+    ADD COLUMN IF NOT EXISTS "imagenVerificacion" TEXT,
+    ADD COLUMN IF NOT EXISTS "responsableCierreId" INTEGER,
+    ADD COLUMN IF NOT EXISTS "responsableVerificacionId" INTEGER;
+        `);
+
+        await pool.query(`
+    UPDATE "ReportePeligro"
+    SET "estado" = 'PENDIENTE'
+    WHERE "estado" IS NULL;
+        `);
+
+        await pool.query(`
+    ALTER TABLE "ReportePeligro"
+    ALTER COLUMN "estado" SET DEFAULT 'PENDIENTE',
+    ALTER COLUMN "estado" SET NOT NULL,
+    ALTER COLUMN "creadoPorId" SET DEFAULT 1;
+        `);
+
+        await pool.query(`
+    ALTER TABLE "TarjetaStop"
+    ADD COLUMN IF NOT EXISTS "comentarioCierre" TEXT,
+    ADD COLUMN IF NOT EXISTS "estado" "EstadoAlerta",
+    ADD COLUMN IF NOT EXISTS "fechaCierre" TIMESTAMP(3),
+    ADD COLUMN IF NOT EXISTS "imagenCierre" TEXT,
+    ADD COLUMN IF NOT EXISTS "responsableCierreId" INTEGER;
+        `);
+
+        await pool.query(`
+    UPDATE "TarjetaStop"
+    SET "estado" = 'PENDIENTE'
+    WHERE "estado" IS NULL;
+        `);
+
+        await pool.query(`
+    ALTER TABLE "TarjetaStop"
+    ALTER COLUMN "estado" SET DEFAULT 'PENDIENTE',
+    ALTER COLUMN "estado" SET NOT NULL,
+    ALTER COLUMN "creadoPorId" SET DEFAULT 1;
+        `);
+
+        await pool.query(`
 ALTER TABLE "CaminataSeguridad"
 DROP CONSTRAINT IF EXISTS "CaminataSeguridad_acompananteId_fkey";
 

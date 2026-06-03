@@ -72,8 +72,8 @@ export default function Navbar() {
                     <div className="flex items-center">
                         <Link href={session ? "/" : "/"} className="flex items-center hover:opacity-80 transition-opacity">
                             <Image
-                                src="/assets/viasentra3.png"
-                                alt="ViaSentra Logo"
+                                src="/assets/TEVLOGO.jpg.jpeg"
+                                alt="TEV Logo"
                                 width={220}
                                 height={60}
                                 priority
