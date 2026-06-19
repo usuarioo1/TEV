@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   title: "NextMiner",
   description: "Sistema de gestión con autenticación",
   icons: {
-    icon: [{ url: "/assets/viasentra3.png", type: "image/png" }],
-    shortcut: ["/assets/viasentra3.png"],
-    apple: [{ url: "/assets/viasentra3.png" }],
+    icon: [{ url: "/assets/logo.png", type: "image/png" }],
+    shortcut: ["/assets/logo.png"],
+    apple: [{ url: "/assets/logo.png" }],
   },
 };
 
