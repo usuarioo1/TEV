@@ -54,18 +54,10 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
             updateData.password = await hashPassword(password);
         }
 
-        try {
-            await prisma.user.update({
-                where: { id: userId },
-                data: updateData,
-            });
-        } catch (error: any) {
-            if (error?.code === 'P2002') {
-                redirect('/users?error=email-exists');
-            }
-
-            throw error;
-        }
+        await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+        });
 
         revalidatePath('/users');
         redirect('/users?updated=true');
@@ -78,7 +70,6 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
     const params = await searchParams;
     const errorMessages: Record<string, string> = {
         'invalid-email': 'El formato del email no es válido.',
-        'email-exists': 'El email ya está registrado por otro usuario.',
         'password-mismatch': 'Las contraseñas no coinciden.',
         'password-too-short': 'La nueva contraseña debe tener al menos 6 caracteres.',
     };

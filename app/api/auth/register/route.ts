@@ -6,6 +6,8 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { username, password, rol, name, email, rut, empresa } = body;
+        const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+        const emailValue = normalizedEmail.length > 0 ? normalizedEmail : null;
 
         // Validaciones
         if (!username || !password || !rol) {
@@ -34,20 +36,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Verificar si el email ya existe (si se proporciona)
-        if (email) {
-            const existingEmail = await prisma.user.findUnique({
-                where: { email },
-            });
-
-            if (existingEmail) {
-                return NextResponse.json(
-                    { error: 'El email ya está registrado' },
-                    { status: 409 }
-                );
-            }
-        }
-
         // Hashear la contraseña
         const hashedPassword = await hashPassword(password);
 
@@ -58,7 +46,7 @@ export async function POST(request: NextRequest) {
                 password: hashedPassword,
                 rol,
                 name: name || null,
-                email: email || null,
+                email: emailValue,
                 rut: rut || null,
                 empresa: empresa || null,
             },

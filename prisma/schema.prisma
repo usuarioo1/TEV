@@ -12,7 +12,7 @@ model User {
   username                String                 @unique
   password                String
   rol                     String
-  email                   String?                @unique
+  email                   String?
   name                    String?
   rut                     String?
   empresa                 String?
