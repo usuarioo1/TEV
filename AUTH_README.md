@@ -44,7 +44,7 @@ model User {
   username  String   @unique
   password  String
   rol       String   // coordinador, jefaturas, supervisor, operario
-  email     String?  @unique
+  email     String?
   name      String?
   posts     Post[]
   createdAt DateTime @default(now())

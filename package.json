@@ -16,7 +16,6 @@
     "limpiar:alertas": "tsx scripts/limpiar-alertas.ts",
     "limpiar:caminatas": "tsx scripts/limpiar-caminatas.ts",
     "inyectar:usuarios:dac": "tsx scripts/inyectar-usuarios-dac.ts",
-    "inyectar:usuario:master": "tsx scripts/inyectar-usuario-master.ts",
     "reset:operativo:dry-run": "tsx scripts/reset-operativo.ts --dry-run",
     "reset:operativo": "tsx scripts/reset-operativo.ts --confirm"
   },

@@ -30,6 +30,11 @@ function getUniqueNoConformidades(
     return Array.from(map.values());
 }
 
+function normalizeEmail(email: string | null): string | null {
+    const normalizedEmail = email?.trim().toLowerCase() ?? '';
+    return normalizedEmail.length > 0 ? normalizedEmail : null;
+}
+
 export async function notifyNoConformidadesLevantadasPorRol(
     params: NotifyNoConformidadesLevantadasPorRolParams
 ): Promise<void> {
@@ -57,12 +62,21 @@ export async function notifyNoConformidadesLevantadasPorRol(
 
         const usuariosPorRol = new Map<string, typeof usuarios>();
         for (const usuario of usuarios) {
-            if (!usuario.email?.trim()) {
+            const email = normalizeEmail(usuario.email);
+            if (!email) {
                 continue;
             }
 
             const list = usuariosPorRol.get(usuario.rol) || [];
-            list.push(usuario);
+            const alreadyAdded = list.some((item) => normalizeEmail(item.email) === email);
+            if (alreadyAdded) {
+                continue;
+            }
+
+            list.push({
+                ...usuario,
+                email,
+            });
             usuariosPorRol.set(usuario.rol, list);
         }
 

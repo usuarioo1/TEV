@@ -7,10 +7,21 @@ import { ROLES } from '@/lib/auth';
 import LogoutButton from './LogoutButton';
 import { useSession } from '@/app/context/SessionContext';
 
+interface SessionData {
+    id: string;
+    username: string;
+    rol: string;
+    name: string;
+    email: string;
+    rut: string;
+    empresa: string;
+}
+
 export default function Navbar() {
     const { session } = useSession();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+    const [caminatasPendientes, setCaminatasPendientes] = useState(0);
     const adminRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -23,6 +34,36 @@ export default function Navbar() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    useEffect(() => {
+        // Fetch caminatas pendientes usando endpoint ligero de count
+        const fetchCaminatasPendientes = () => {
+            if (session?.rol === ROLES.SUPERVISOR) {
+                fetch('/api/caminatas/pendientes-count')
+                    .then(res => {
+                        if (!res.ok) return { count: 0 };
+                        return res.json();
+                    })
+                    .then(data => setCaminatasPendientes(data.count ?? 0))
+                    .catch(() => setCaminatasPendientes(0));
+            }
+        };
+
+        // Fetch inicial
+        fetchCaminatasPendientes();
+
+        // Escuchar eventos de cambio de estado de caminatas
+        const handleCaminataChange = () => {
+            fetchCaminatasPendientes();
+        };
+
+        window.addEventListener('caminataEstadoChanged', handleCaminataChange);
+
+        // Cleanup
+        return () => {
+            window.removeEventListener('caminataEstadoChanged', handleCaminataChange);
+        };
+    }, [session]);
+
     return (
         <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -32,7 +73,7 @@ export default function Navbar() {
                         <Link href={session ? "/" : "/"} className="flex items-center hover:opacity-80 transition-opacity">
                             <Image
                                 src="/assets/logo.png"
-                                alt="TEV Logo"
+                                alt="ViaSentra Logo"
                                 width={220}
                                 height={60}
                                 priority
