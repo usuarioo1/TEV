@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        let tareas;
+        type TareaPendiente = Awaited<ReturnType<typeof prisma.tareaAsignada.findMany>>;
+        let tareas: TareaPendiente;
 
         if (session.rol === ROLES.PREVENCIONISTA) {
             // Prevencionistas ven las tareas pendientes asignadas a ellos (incluye autoasignadas)
