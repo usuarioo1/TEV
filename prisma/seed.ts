@@ -182,6 +182,20 @@ const usersData = [
             },
         ],
     },
+    {
+        username: "tomas",
+        password: "tomas123",
+        rol: "taller",
+        name: "Tomás Vega",
+        email: "tomas@prisma.io",
+        posts: [
+            {
+                title: "No Conformidades Mecánicas",
+                content: "Procedimiento para registrar y gestionar no conformidades de equipos",
+                published: true,
+            },
+        ],
+    },
 ];
 
 export async function main() {
@@ -189,6 +203,8 @@ export async function main() {
     await prisma.servicio.deleteMany();
     await prisma.post.deleteMany();
     await prisma.user.deleteMany();
+    await prisma.tractoCamion.deleteMany();
+    await prisma.semiremolque.deleteMany();
 
     console.log("Base de datos limpiada");
 
@@ -260,12 +276,36 @@ export async function main() {
 
     console.log("✓ 3 servicios de prueba creados");
 
-    console.log("\n✓ Seed completado: 9 usuarios con posts y 3 servicios creados");
+    // Crear flota de prueba: tractocamiones
+    console.log("\nCreando flota de prueba...");
+
+    await prisma.tractoCamion.createMany({
+        data: [
+            { patente: "DKRT11", marca: "Freightliner", año: 2021, activo: true },
+            { patente: "FLTB25", marca: "Scania", año: 2022, activo: true },
+            { patente: "GHTC94", marca: "Volvo", año: 2020, activo: true },
+        ],
+    });
+    console.log("✓ 3 tractocamiones de prueba creados");
+
+    // Crear flota de prueba: semiremolques
+    await prisma.semiremolque.createMany({
+        data: [
+            { patente: "AA1234", tipo: "Plataforma", marca: "Traton", año: 2021, activo: true },
+            { patente: "BB5678", tipo: "Tanque", marca: "Fraser", año: 2019, activo: true },
+            { patente: "CC9012", tipo: "Silo", marca: "Netzsch", año: 2023, activo: true },
+        ],
+    });
+    console.log("✓ 3 semiremolques de prueba creados");
+
+    console.log("\n✓ Seed completado: 11 usuarios con posts, 3 servicios y flota creados");
     console.log("\nCredenciales de prueba:");
     console.log("  - Coordinadores: charlie / charlie123, isabel / isabel123");
     console.log("  - Jefaturas: alice / alice123, bob / bob123");
     console.log("  - Supervisores: francisco / francisco123");
     console.log("  - Operarios: diana / diana123, edward / edward123, gabriela / gabriela123, hector / hector123");
+    console.log("  - Prevencionista: pedro / pedro123");
+    console.log("  - Taller: tomas / tomas123");
 }
 
 main();

@@ -46,13 +46,16 @@ export default function Home() {
   }, [session, loading, router]);
 
   useEffect(() => {
-    if (!session || (session.rol !== 'supervisor' && session.rol !== 'jefaturas' && session.rol !== 'coordinador' && session.rol !== 'prevencionista')) {
+    if (!session || (session.rol !== 'supervisor' && session.rol !== 'jefaturas' && session.rol !== 'coordinador' && session.rol !== 'prevencionista' && session.rol !== 'taller')) {
       return;
     }
+    // Taller no tiene acceso a /api/caminatas ni /api/tareas-asignadas (403).
+    // Sus actividades pendientes son: alertas de cierre, NC y hallazgos.
+    const esTaller = session.rol === 'taller';
     queueMicrotask(() => setActividadesLoading(true));
     Promise.all([
-      fetch('/api/caminatas').then(r => r.ok ? r.json() : []),
-      fetch('/api/tareas-asignadas').then(r => r.ok ? r.json() : []),
+      esTaller ? Promise.resolve([]) : fetch('/api/caminatas').then(r => r.ok ? r.json() : []),
+      esTaller ? Promise.resolve([]) : fetch('/api/tareas-asignadas').then(r => r.ok ? r.json() : []),
       fetch('/api/alertas/pendientes').then(r => r.ok ? r.json() : null),
       session.rol === 'supervisor'
         ? fetch('/api/supervisor/pendientes-aprobacion').then(r => r.ok ? r.json() : null)
@@ -307,10 +310,38 @@ export default function Home() {
                 {session.rol === 'supervisor' && <GridSupervisor />}
                 {session.rol === 'coordinador' && <GridCoordinador />}
                 {session.rol === 'taller' && (
-                  <GridTaller
-                    noConformidadesPendientes={noConformidadesPendientes}
-                    hallazgosPendientes={hallazgosPendientes}
-                  />
+                  <div className="space-y-8">
+                    <section>
+                      <ActividadesPendientes
+                        caminatasPendientes={caminatasPendientes}
+                        tareasAsignadas={tareasAsignadas}
+                        reportesCierre={reportesCierre}
+                        reportesVerificacion={reportesVerificacion}
+                        controlesART={controlesART}
+                        serviciosPendientesAprobacion={serviciosPendientesAprobacion}
+                        noConformidadesPendientes={noConformidadesPendientes}
+                        hallazgosPendientes={hallazgosPendientes}
+                        loading={actividadesLoading}
+                        expandedTareas={expandedTareas}
+                        onToggleTareas={() => setExpandedTareas(v => !v)}
+                        expandedCaminatas={expandedCaminatas}
+                        onToggleCaminatas={() => setExpandedCaminatas(v => !v)}
+                        expandedCierre={expandedCierre}
+                        onToggleCierre={() => setExpandedCierre(v => !v)}
+                        expandedVerificacion={expandedVerificacion}
+                        onToggleVerificacion={() => setExpandedVerificacion(v => !v)}
+                        expandedARTs={expandedARTs}
+                        onToggleARTs={() => setExpandedARTs(v => !v)}
+                        singleCardMode={true}
+                      />
+                    </section>
+                    <section>
+                      <GridTaller
+                        noConformidadesPendientes={noConformidadesPendientes}
+                        hallazgosPendientes={hallazgosPendientes}
+                      />
+                    </section>
+                  </div>
                 )}
               </>
             )}

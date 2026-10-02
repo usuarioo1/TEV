@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
                 orderBy: { createdAt: 'desc' },
             });
         } else {
-            return NextResponse.json({ error: 'No tienes permisos' }, { status: 403 });
+            // Operarios y taller no pueden tener tareas asignadas
+            tareas = [];
         }
 
         return NextResponse.json(tareas);
