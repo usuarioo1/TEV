@@ -67,6 +67,7 @@ export default function CaminatasPage() {
     const puedeEliminar = userRole === 'prevencionista';
     const [fechaDesde, setFechaDesde] = useState('');
     const [fechaHasta, setFechaHasta] = useState('');
+    const [filtroProgramacion, setFiltroProgramacion] = useState<'todas' | 'programadas' | 'sin-programar'>('todas');
 
     useEffect(() => {
         if (session !== undefined && userRole === 'coordinador') {
@@ -115,6 +116,12 @@ export default function CaminatasPage() {
     };
 
     const caminatasFiltradas = caminatas.filter(c => {
+        if (userRole === 'prevencionista' && filtroProgramacion !== 'todas') {
+            const estaProgramada = Boolean(c.fechaProgramada);
+            if (filtroProgramacion === 'programadas' && !estaProgramada) return false;
+            if (filtroProgramacion === 'sin-programar' && estaProgramada) return false;
+        }
+
         if (!fechaDesde && !fechaHasta) return true;
         if (!c.fechaProgramada) return false;
         const scheduledDate = toScheduledDateKey(c.fechaProgramada);
@@ -239,6 +246,27 @@ export default function CaminatasPage() {
                             </span>
                         )}
                     </div>
+
+                    {userRole === 'prevencionista' && (
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-500">Programación:</span>
+                            {(['todas', 'programadas', 'sin-programar'] as const).map((opcion) => (
+                                <button
+                                    key={opcion}
+                                    onClick={() => setFiltroProgramacion(opcion)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                        filtroProgramacion === opcion
+                                            ? 'bg-cyan-600 text-white'
+                                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    {opcion === 'todas' && 'Todas'}
+                                    {opcion === 'programadas' && 'Programadas'}
+                                    {opcion === 'sin-programar' && 'Sin programar'}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Stats Cards */}
@@ -330,6 +358,23 @@ export default function CaminatasPage() {
                                         <p className="text-sm text-gray-600 mt-1">{caminata.actividad}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        {userRole === 'prevencionista' && (
+                                            caminata.fechaProgramada ? (
+                                                <span
+                                                    className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800"
+                                                    title={`Programada: ${formatScheduledDate(caminata.fechaProgramada)}`}
+                                                >
+                                                    Programada
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800"
+                                                    title="Sin fecha programada"
+                                                >
+                                                    Sin programar
+                                                </span>
+                                            )
+                                        )}
                                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getEstadoBadge(caminata.estado)}`}>
                                             {caminata.estado.replace('_', ' ')}
                                         </span>
