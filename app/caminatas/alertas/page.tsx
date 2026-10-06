@@ -103,6 +103,7 @@ export default function AlertasPage() {
     const [eliminando, setEliminando] = useState<string | null>(null);
     const [fechaDesde, setFechaDesde] = useState('');
     const [fechaHasta, setFechaHasta] = useState('');
+    const [filtroOrigen, setFiltroOrigen] = useState<'todas' | 'programadas' | 'no-programadas'>('todas');
     const [dashboardRows, setDashboardRows] = useState<DashboardActivityRow[]>([]);
     const [dashboardLoading, setDashboardLoading] = useState(true);
     const [dashboardError, setDashboardError] = useState<string | null>(null);
@@ -340,10 +341,14 @@ export default function AlertasPage() {
         return new Date(dateStr).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
     }
 
+    const esProgramada = (item: Reporte) => item.creadoPor.rol === 'prevencionista';
+
     const reportesFiltrados = reportes.filter((r) => {
         const fecha = toChileDate(r.createdAt);
         if (fechaDesde && fecha < fechaDesde) return false;
         if (fechaHasta && fecha > fechaHasta) return false;
+        if (filtroOrigen === 'programadas' && !esProgramada(r)) return false;
+        if (filtroOrigen === 'no-programadas' && esProgramada(r)) return false;
         return true;
     });
 
@@ -351,6 +356,8 @@ export default function AlertasPage() {
         const fecha = toChileDate(t.createdAt);
         if (fechaDesde && fecha < fechaDesde) return false;
         if (fechaHasta && fecha > fechaHasta) return false;
+        if (filtroOrigen === 'programadas' && !esProgramada(t)) return false;
+        if (filtroOrigen === 'no-programadas' && esProgramada(t)) return false;
         return true;
     });
 
@@ -358,6 +365,8 @@ export default function AlertasPage() {
         const fecha = toChileDate(c.createdAt);
         if (fechaDesde && fecha < fechaDesde) return false;
         if (fechaHasta && fecha > fechaHasta) return false;
+        if (filtroOrigen === 'programadas' && !esProgramada(c)) return false;
+        if (filtroOrigen === 'no-programadas' && esProgramada(c)) return false;
         return true;
     });
 
@@ -374,7 +383,7 @@ export default function AlertasPage() {
         [dashboardRows],
     );
 
-    const hayFiltro = fechaDesde !== '' || fechaHasta !== '';
+    const hayFiltro = fechaDesde !== '' || fechaHasta !== '' || filtroOrigen !== 'todas';
 
     if (loading) {
         return (
@@ -535,7 +544,7 @@ export default function AlertasPage() {
                         </div>
                         {hayFiltro && (
                             <button
-                                onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+                                onClick={() => { setFechaDesde(''); setFechaHasta(''); setFiltroOrigen('todas'); }}
                                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium transition-colors"
                             >
                                 Limpiar filtro
@@ -546,6 +555,25 @@ export default function AlertasPage() {
                                 Mostrando {reportesFiltrados.length + tarjetasFiltradas.length + controlesFiltrados.length} de {reportes.length + tarjetas.length + controlesART.length} registros
                             </p>
                         )}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold text-gray-500">Origen:</span>
+                        {(['todas', 'programadas', 'no-programadas'] as const).map((opcion) => (
+                            <button
+                                key={opcion}
+                                onClick={() => setFiltroOrigen(opcion)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                    filtroOrigen === opcion
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                }`}
+                            >
+                                {opcion === 'todas' && 'Todas'}
+                                {opcion === 'programadas' && 'Programadas'}
+                                {opcion === 'no-programadas' && 'No programadas'}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
@@ -570,6 +598,7 @@ export default function AlertasPage() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zona/Faena</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Riesgo</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reportado por</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origen</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsable Cierre</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
@@ -620,6 +649,17 @@ export default function AlertasPage() {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {reporte.creadoPor.name || reporte.creadoPor.username}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    {esProgramada(reporte) ? (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                                            Programada
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                                                            No programada
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {reporte.responsableCierre ?
@@ -704,6 +744,7 @@ export default function AlertasPage() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Causal Detención</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zona/Faena</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reportado por</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origen</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsable Cierre</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
@@ -738,6 +779,17 @@ export default function AlertasPage() {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {tarjeta.creadoPor.name || tarjeta.creadoPor.username}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    {esProgramada(tarjeta) ? (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                                            Programada
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                                                            No programada
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {tarjeta.responsableCierre ?
@@ -823,6 +875,7 @@ export default function AlertasPage() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zona/Faena</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cumplimiento</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reportado por</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origen</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                                     </tr>
@@ -862,6 +915,17 @@ export default function AlertasPage() {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {control.creadoPor.name || control.creadoPor.username}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    {esProgramada(control) ? (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                                            Programada
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                                                            No programada
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {new Date(control.createdAt).toLocaleDateString('es-CL')}
