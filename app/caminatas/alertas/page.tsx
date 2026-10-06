@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { safeResponseJson } from '@/lib/upload';
 import ReportePeligroForm from '@/components/caminatas/ReportePeligroForm';
 import TarjetaStopForm from '@/components/caminatas/TarjetaStopForm';
 import ControlCalidadARTForm from '@/components/caminatas/ControlCalidadARTForm';
@@ -99,6 +100,7 @@ export default function AlertasPage() {
     const [tipoFormulario, setTipoFormulario] = useState<'seleccion' | 'peligro' | 'stop' | 'art'>('seleccion');
     const [selectedItem, setSelectedItem] = useState<{ tipo: 'reporte' | 'tarjeta' | 'control', item: Reporte } | null>(null);
     const [pdfLoading, setPdfLoading] = useState<string | null>(null);
+    const [eliminando, setEliminando] = useState<string | null>(null);
     const [fechaDesde, setFechaDesde] = useState('');
     const [fechaHasta, setFechaHasta] = useState('');
     const [dashboardRows, setDashboardRows] = useState<DashboardActivityRow[]>([]);
@@ -214,6 +216,42 @@ export default function AlertasPage() {
         fetchControlesART();
         fetchResumenDashboard();
     };
+
+    const handleEliminar = async (tipo: 'reporte' | 'tarjeta' | 'control', id: number) => {
+        if (!window.confirm('¿Estás seguro de eliminar esta actividad? Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        const key = `${tipo}-${id}`;
+        setEliminando(key);
+
+        const endpointMap = {
+            reporte: `/api/reportes-peligro/${id}`,
+            tarjeta: `/api/tarjetas-stop/${id}`,
+            control: `/api/control-calidad-art/${id}`,
+        };
+
+        try {
+            const response = await fetch(endpointMap[tipo], { method: 'DELETE' });
+            const result = await safeResponseJson(response);
+
+            if (!result.ok) {
+                throw new Error(result.error || 'Error al eliminar la actividad');
+            }
+
+            if (tipo === 'reporte') fetchReportes();
+            else if (tipo === 'tarjeta') fetchTarjetas();
+            else fetchControlesART();
+
+            fetchResumenDashboard();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al eliminar la actividad');
+        } finally {
+            setEliminando(null);
+        }
+    };
+
+    const puedeEliminar = session?.rol === 'prevencionista';
 
     const buildTimelineEvents = (item: Reporte, tipo: 'reporte' | 'tarjeta') => {
         const events: any[] = [];
@@ -616,6 +654,18 @@ export default function AlertasPage() {
                                                             </svg>
                                                             {pdfLoading === `reporte-${reporte.id}` ? 'Generando...' : 'Exportar'}
                                                         </button>
+                                                        {puedeEliminar && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleEliminar('reporte', reporte.id);
+                                                                }}
+                                                                disabled={eliminando === `reporte-${reporte.id}`}
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                                                            >
+                                                                {eliminando === `reporte-${reporte.id}` ? 'Eliminando...' : 'Eliminar'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -722,6 +772,18 @@ export default function AlertasPage() {
                                                             </svg>
                                                             {pdfLoading === `tarjeta-${tarjeta.id}` ? 'Generando...' : 'Exportar'}
                                                         </button>
+                                                        {puedeEliminar && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleEliminar('tarjeta', tarjeta.id);
+                                                                }}
+                                                                disabled={eliminando === `tarjeta-${tarjeta.id}`}
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                                                            >
+                                                                {eliminando === `tarjeta-${tarjeta.id}` ? 'Eliminando...' : 'Eliminar'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -828,6 +890,18 @@ export default function AlertasPage() {
                                                             </svg>
                                                             {pdfLoading === `control-${control.id}` ? 'Generando...' : 'Exportar'}
                                                         </button>
+                                                        {puedeEliminar && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleEliminar('control', control.id);
+                                                                }}
+                                                                disabled={eliminando === `control-${control.id}`}
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                                                            >
+                                                                {eliminando === `control-${control.id}` ? 'Eliminando...' : 'Eliminar'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
