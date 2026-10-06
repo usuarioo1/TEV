@@ -4,8 +4,10 @@ import { uploadToCloudinary } from '@/lib/cloudinary';
 
 export const dynamic = 'force-dynamic';
 
-const MAX_IMAGES_PER_REQUEST = 10;
-const MAX_IMAGE_SIZE_MB = 10;
+// Límite realista para Vercel: body total ~4.5 MB en serverless functions.
+// Con compresión a 1280px/0.8, la mayoría de fotos quedan bajo 1 MB.
+const MAX_IMAGES_PER_REQUEST = 6;
+const MAX_IMAGE_SIZE_MB = 3;
 
 function estimateBase64Bytes(dataUri: string): number {
     const base64 = dataUri.split(',')[1] || '';
@@ -102,10 +104,11 @@ export async function POST(request: NextRequest) {
             failed,
             partial: failed.length > 0,
         });
-    } catch (error: any) {
+    } catch (error) {
         console.error('Error al subir imágenes:', error);
+        const message = error instanceof Error ? error.message : 'Error al subir las imágenes';
         return NextResponse.json(
-            { error: error.message || 'Error al subir las imágenes' },
+            { error: message },
             { status: 500 }
         );
     }
