@@ -304,9 +304,10 @@ export async function DELETE(
             return NextResponse.json({ error: 'Caminata no encontrada' }, { status: 404 });
         }
 
-        // Solo el coordinador que la creó puede eliminarla
-        if (caminata.coordinadorId !== session.id) {
-            return NextResponse.json({ error: 'Solo el coordinador puede eliminar esta caminata' }, { status: 403 });
+        // Prevencionistas pueden eliminar cualquier caminata.
+        // El coordinador que la creó también puede eliminarla.
+        if (session.rol !== ROLES.PREVENCIONISTA && caminata.coordinadorId !== session.id) {
+            return NextResponse.json({ error: 'No tienes permisos para eliminar esta caminata' }, { status: 403 });
         }
 
         await prisma.caminataSeguridad.delete({

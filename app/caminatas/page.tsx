@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/app/context/SessionContext';
+import { safeResponseJson } from '@/lib/upload';
 
 interface Caminata {
     id: number;
@@ -61,6 +62,9 @@ export default function CaminatasPage() {
     const [caminatas, setCaminatas] = useState<Caminata[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [eliminando, setEliminando] = useState<number | null>(null);
+
+    const puedeEliminar = userRole === 'prevencionista';
     const [fechaDesde, setFechaDesde] = useState('');
     const [fechaHasta, setFechaHasta] = useState('');
 
@@ -85,6 +89,28 @@ export default function CaminatasPage() {
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleEliminar = async (id: number) => {
+        if (!window.confirm('¿Estás seguro de eliminar esta caminata? Se eliminarán también sus reportes, tarjetas stop y controles ART asociados. Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        setEliminando(id);
+        try {
+            const response = await fetch(`/api/caminatas/${id}`, { method: 'DELETE' });
+            const result = await safeResponseJson(response);
+
+            if (!result.ok) {
+                throw new Error(result.error || 'Error al eliminar la caminata');
+            }
+
+            fetchCaminatas();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al eliminar la caminata');
+        } finally {
+            setEliminando(null);
         }
     };
 
@@ -303,9 +329,24 @@ export default function CaminatasPage() {
                                         <h3 className="text-lg font-semibold text-gray-900">{caminata.codigo}</h3>
                                         <p className="text-sm text-gray-600 mt-1">{caminata.actividad}</p>
                                     </div>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getEstadoBadge(caminata.estado)}`}>
-                                        {caminata.estado.replace('_', ' ')}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getEstadoBadge(caminata.estado)}`}>
+                                            {caminata.estado.replace('_', ' ')}
+                                        </span>
+                                        {puedeEliminar && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    handleEliminar(caminata.id);
+                                                }}
+                                                disabled={eliminando === caminata.id}
+                                                className="inline-flex items-center px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                                            >
+                                                {eliminando === caminata.id ? 'Eliminando...' : 'Eliminar'}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-4">
