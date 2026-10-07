@@ -58,9 +58,29 @@ interface DashboardActivityRow {
     totalActividades: number;
 }
 
+type EstadoDisplay = 'en_plazo' | 'fuera_plazo' | 'atrasada' | 'proxima';
+
+interface DashboardPendingItem {
+    id: number;
+    descripcion: string;
+    usuario: string;
+    fechaProgramada: string | null;
+    fechaLimite: string | null;
+    estadoDisplay: EstadoDisplay;
+    urlDetalle: string | null;
+}
+
+interface DashboardActivityDetalle {
+    caminata: { programadas: any[]; noProgramadas: any[] };
+    reporte_peligro: { programadas: DashboardPendingItem[]; noProgramadas: any[] };
+    tarjeta_stop: { programadas: DashboardPendingItem[]; noProgramadas: any[] };
+    control_art: { programadas: DashboardPendingItem[]; noProgramadas: any[] };
+}
+
 interface DashboardActivityResponse {
     rows?: DashboardActivityRow[];
     programadasRecordIds?: Record<DashboardActivityTipo, number[]>;
+    detallePorTipo?: DashboardActivityDetalle;
     error?: string;
 }
 
@@ -112,8 +132,10 @@ export default function AlertasPage() {
         tarjeta_stop: new Set(),
         control_art: new Set(),
     });
+    const [detallePorTipo, setDetallePorTipo] = useState<DashboardActivityDetalle | null>(null);
     const [dashboardLoading, setDashboardLoading] = useState(true);
     const [dashboardError, setDashboardError] = useState<string | null>(null);
+    const [eliminandoTarea, setEliminandoTarea] = useState<number | null>(null);
 
     const onExport = async (tipo: 'reporte' | 'tarjeta' | 'control', id: number) => {
         const key = `${tipo}-${id}`;
@@ -214,6 +236,7 @@ export default function AlertasPage() {
                 tarjeta_stop: new Set(data.programadasRecordIds?.tarjeta_stop ?? []),
                 control_art: new Set(data.programadasRecordIds?.control_art ?? []),
             });
+            setDetallePorTipo(data.detallePorTipo ?? null);
         } catch (err) {
             setDashboardError(err instanceof Error ? err.message : 'Error al cargar el resumen de actividades');
             setDashboardRows([]);
@@ -223,6 +246,7 @@ export default function AlertasPage() {
                 tarjeta_stop: new Set(),
                 control_art: new Set(),
             });
+            setDetallePorTipo(null);
         } finally {
             setDashboardLoading(false);
         }
@@ -272,6 +296,49 @@ export default function AlertasPage() {
     };
 
     const puedeEliminar = session?.rol === 'prevencionista';
+
+    const handleEliminarTarea = async (id: number) => {
+        if (!window.confirm('¿Estás seguro de eliminar esta tarea asignada? Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        setEliminandoTarea(id);
+        try {
+            const response = await fetch(`/api/tareas-asignadas/${id}`, { method: 'DELETE' });
+            const result = await safeResponseJson(response);
+
+            if (!result.ok) {
+                throw new Error(result.error || 'Error al eliminar la tarea');
+            }
+
+            fetchResumenDashboard();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al eliminar la tarea');
+        } finally {
+            setEliminandoTarea(null);
+        }
+    };
+
+    const actividadesPendientes = useMemo(() => {
+        if (!detallePorTipo) return [];
+
+        const tipos: DashboardActivityTipo[] = ['reporte_peligro', 'tarjeta_stop', 'control_art'];
+        const items: Array<DashboardPendingItem & { tipo: DashboardActivityTipo }> = [];
+
+        for (const tipo of tipos) {
+            for (const item of detallePorTipo[tipo].programadas) {
+                if (item.estadoDisplay === 'proxima' || item.estadoDisplay === 'atrasada') {
+                    items.push({ ...item, tipo });
+                }
+            }
+        }
+
+        return items.sort((a, b) => {
+            const fa = a.fechaProgramada ? new Date(a.fechaProgramada).getTime() : 0;
+            const fb = b.fechaProgramada ? new Date(b.fechaProgramada).getTime() : 0;
+            return fa - fb;
+        });
+    }, [detallePorTipo]);
 
     const buildTimelineEvents = (item: Reporte, tipo: 'reporte' | 'tarjeta') => {
         const events: any[] = [];
@@ -999,6 +1066,98 @@ export default function AlertasPage() {
                         <div className="p-6">
                             <p className="text-gray-500 italic">
                                 {hayFiltro ? 'No hay controles ART en el rango de fechas seleccionado' : 'No hay controles de calidad ART para mostrar'}
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Actividades programadas pendientes */}
+                <div className="bg-white rounded-lg shadow mb-6 overflow-hidden">
+                    <div className="p-6 border-b border-gray-200">
+                        <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                            <svg className="w-6 h-6 text-indigo-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Actividades programadas pendientes ({actividadesPendientes.length})
+                        </h2>
+                        <p className="text-sm text-gray-600 mt-1">
+                            Tareas asignadas que aún no se han completado (próximas o atrasadas).
+                        </p>
+                    </div>
+                    {actividadesPendientes.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asignado a</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha programada</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha límite</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                        {puedeEliminar && (
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                                        )}
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {actividadesPendientes.map((actividad) => {
+                                        const meta = DASHBOARD_TIPO_META[actividad.tipo];
+                                        return (
+                                            <tr key={`${actividad.tipo}-${actividad.id}`} className="hover:bg-indigo-50 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${meta.badgeClass}`}>
+                                                        {meta.label}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-900">
+                                                    {actividad.descripcion}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                    {actividad.usuario}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {actividad.fechaProgramada
+                                                        ? new Date(actividad.fechaProgramada).toLocaleDateString('es-CL')
+                                                        : 'N/A'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {actividad.fechaLimite
+                                                        ? new Date(actividad.fechaLimite).toLocaleDateString('es-CL')
+                                                        : 'N/A'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    {actividad.estadoDisplay === 'atrasada' ? (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                                                            Atrasada
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                                                            Próxima
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                {puedeEliminar && (
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                        <button
+                                                            onClick={() => handleEliminarTarea(actividad.id)}
+                                                            disabled={eliminandoTarea === actividad.id}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                                                        >
+                                                            {eliminandoTarea === actividad.id ? 'Eliminando...' : 'Eliminar'}
+                                                        </button>
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="p-6">
+                            <p className="text-gray-500 italic">
+                                No hay actividades programadas pendientes.
                             </p>
                         </div>
                     )}
