@@ -17,15 +17,9 @@ export async function GET(request: NextRequest) {
     try {
         let caminatas;
 
-        // Prevencionistas ven todas las caminatas que han creado + todas las completadas
+        // Prevencionistas ven todas las caminatas del sistema
         if (session.rol === ROLES.PREVENCIONISTA) {
             caminatas = await prisma.caminataSeguridad.findMany({
-                where: {
-                    OR: [
-                        { coordinadorId: session.id },
-                        { estado: 'COMPLETADA' },
-                    ],
-                },
                 include: {
                     empresa: {
                         select: {

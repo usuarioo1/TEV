@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { safeResponseJson } from '@/lib/upload';
 import ReportePeligroForm from '@/components/caminatas/ReportePeligroForm';
 import TarjetaStopForm from '@/components/caminatas/TarjetaStopForm';
 import ControlCalidadARTForm from '@/components/caminatas/ControlCalidadARTForm';
@@ -57,8 +58,29 @@ interface DashboardActivityRow {
     totalActividades: number;
 }
 
+type EstadoDisplay = 'en_plazo' | 'fuera_plazo' | 'atrasada' | 'proxima';
+
+interface DashboardPendingItem {
+    id: number;
+    descripcion: string;
+    usuario: string;
+    fechaProgramada: string | null;
+    fechaLimite: string | null;
+    estadoDisplay: EstadoDisplay;
+    urlDetalle: string | null;
+}
+
+interface DashboardActivityDetalle {
+    caminata: { programadas: any[]; noProgramadas: any[] };
+    reporte_peligro: { programadas: DashboardPendingItem[]; noProgramadas: any[] };
+    tarjeta_stop: { programadas: DashboardPendingItem[]; noProgramadas: any[] };
+    control_art: { programadas: DashboardPendingItem[]; noProgramadas: any[] };
+}
+
 interface DashboardActivityResponse {
     rows?: DashboardActivityRow[];
+    programadasRecordIds?: Record<DashboardActivityTipo, number[]>;
+    detallePorTipo?: DashboardActivityDetalle;
     error?: string;
 }
 
@@ -99,11 +121,21 @@ export default function AlertasPage() {
     const [tipoFormulario, setTipoFormulario] = useState<'seleccion' | 'peligro' | 'stop' | 'art'>('seleccion');
     const [selectedItem, setSelectedItem] = useState<{ tipo: 'reporte' | 'tarjeta' | 'control', item: Reporte } | null>(null);
     const [pdfLoading, setPdfLoading] = useState<string | null>(null);
+    const [eliminando, setEliminando] = useState<string | null>(null);
     const [fechaDesde, setFechaDesde] = useState('');
     const [fechaHasta, setFechaHasta] = useState('');
+    const [filtroOrigen, setFiltroOrigen] = useState<'todas' | 'programadas' | 'no-programadas'>('todas');
     const [dashboardRows, setDashboardRows] = useState<DashboardActivityRow[]>([]);
+    const [programadasIds, setProgramadasIds] = useState<Record<DashboardActivityTipo, Set<number>>>({
+        caminata: new Set(),
+        reporte_peligro: new Set(),
+        tarjeta_stop: new Set(),
+        control_art: new Set(),
+    });
+    const [detallePorTipo, setDetallePorTipo] = useState<DashboardActivityDetalle | null>(null);
     const [dashboardLoading, setDashboardLoading] = useState(true);
     const [dashboardError, setDashboardError] = useState<string | null>(null);
+    const [eliminandoTarea, setEliminandoTarea] = useState<number | null>(null);
 
     const onExport = async (tipo: 'reporte' | 'tarjeta' | 'control', id: number) => {
         const key = `${tipo}-${id}`;
@@ -198,9 +230,23 @@ export default function AlertasPage() {
             }
 
             setDashboardRows(Array.isArray(data.rows) ? data.rows : []);
+            setProgramadasIds({
+                caminata: new Set(),
+                reporte_peligro: new Set(data.programadasRecordIds?.reporte_peligro ?? []),
+                tarjeta_stop: new Set(data.programadasRecordIds?.tarjeta_stop ?? []),
+                control_art: new Set(data.programadasRecordIds?.control_art ?? []),
+            });
+            setDetallePorTipo(data.detallePorTipo ?? null);
         } catch (err) {
             setDashboardError(err instanceof Error ? err.message : 'Error al cargar el resumen de actividades');
             setDashboardRows([]);
+            setProgramadasIds({
+                caminata: new Set(),
+                reporte_peligro: new Set(),
+                tarjeta_stop: new Set(),
+                control_art: new Set(),
+            });
+            setDetallePorTipo(null);
         } finally {
             setDashboardLoading(false);
         }
@@ -214,6 +260,85 @@ export default function AlertasPage() {
         fetchControlesART();
         fetchResumenDashboard();
     };
+
+    const handleEliminar = async (tipo: 'reporte' | 'tarjeta' | 'control', id: number) => {
+        if (!window.confirm('¿Estás seguro de eliminar esta actividad? Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        const key = `${tipo}-${id}`;
+        setEliminando(key);
+
+        const endpointMap = {
+            reporte: `/api/reportes-peligro/${id}`,
+            tarjeta: `/api/tarjetas-stop/${id}`,
+            control: `/api/control-calidad-art/${id}`,
+        };
+
+        try {
+            const response = await fetch(endpointMap[tipo], { method: 'DELETE' });
+            const result = await safeResponseJson(response);
+
+            if (!result.ok) {
+                throw new Error(result.error || 'Error al eliminar la actividad');
+            }
+
+            if (tipo === 'reporte') fetchReportes();
+            else if (tipo === 'tarjeta') fetchTarjetas();
+            else fetchControlesART();
+
+            fetchResumenDashboard();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al eliminar la actividad');
+        } finally {
+            setEliminando(null);
+        }
+    };
+
+    const puedeEliminar = session?.rol === 'prevencionista';
+
+    const handleEliminarTarea = async (id: number) => {
+        if (!window.confirm('¿Estás seguro de eliminar esta tarea asignada? Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        setEliminandoTarea(id);
+        try {
+            const response = await fetch(`/api/tareas-asignadas/${id}`, { method: 'DELETE' });
+            const result = await safeResponseJson(response);
+
+            if (!result.ok) {
+                throw new Error(result.error || 'Error al eliminar la tarea');
+            }
+
+            fetchResumenDashboard();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al eliminar la tarea');
+        } finally {
+            setEliminandoTarea(null);
+        }
+    };
+
+    const actividadesPendientes = useMemo(() => {
+        if (!detallePorTipo) return [];
+
+        const tipos: DashboardActivityTipo[] = ['reporte_peligro', 'tarjeta_stop', 'control_art'];
+        const items: Array<DashboardPendingItem & { tipo: DashboardActivityTipo }> = [];
+
+        for (const tipo of tipos) {
+            for (const item of detallePorTipo[tipo].programadas) {
+                if (item.estadoDisplay === 'proxima' || item.estadoDisplay === 'atrasada') {
+                    items.push({ ...item, tipo });
+                }
+            }
+        }
+
+        return items.sort((a, b) => {
+            const fa = a.fechaProgramada ? new Date(a.fechaProgramada).getTime() : 0;
+            const fb = b.fechaProgramada ? new Date(b.fechaProgramada).getTime() : 0;
+            return fa - fb;
+        });
+    }, [detallePorTipo]);
 
     const buildTimelineEvents = (item: Reporte, tipo: 'reporte' | 'tarjeta') => {
         const events: any[] = [];
@@ -302,10 +427,16 @@ export default function AlertasPage() {
         return new Date(dateStr).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
     }
 
+    const esProgramadaReporte = (item: Reporte) => programadasIds.reporte_peligro.has(item.id);
+    const esProgramadaTarjeta = (item: Reporte) => programadasIds.tarjeta_stop.has(item.id);
+    const esProgramadaControl = (item: Reporte) => programadasIds.control_art.has(item.id);
+
     const reportesFiltrados = reportes.filter((r) => {
         const fecha = toChileDate(r.createdAt);
         if (fechaDesde && fecha < fechaDesde) return false;
         if (fechaHasta && fecha > fechaHasta) return false;
+        if (filtroOrigen === 'programadas' && !esProgramadaReporte(r)) return false;
+        if (filtroOrigen === 'no-programadas' && esProgramadaReporte(r)) return false;
         return true;
     });
 
@@ -313,6 +444,8 @@ export default function AlertasPage() {
         const fecha = toChileDate(t.createdAt);
         if (fechaDesde && fecha < fechaDesde) return false;
         if (fechaHasta && fecha > fechaHasta) return false;
+        if (filtroOrigen === 'programadas' && !esProgramadaTarjeta(t)) return false;
+        if (filtroOrigen === 'no-programadas' && esProgramadaTarjeta(t)) return false;
         return true;
     });
 
@@ -320,6 +453,8 @@ export default function AlertasPage() {
         const fecha = toChileDate(c.createdAt);
         if (fechaDesde && fecha < fechaDesde) return false;
         if (fechaHasta && fecha > fechaHasta) return false;
+        if (filtroOrigen === 'programadas' && !esProgramadaControl(c)) return false;
+        if (filtroOrigen === 'no-programadas' && esProgramadaControl(c)) return false;
         return true;
     });
 
@@ -336,7 +471,7 @@ export default function AlertasPage() {
         [dashboardRows],
     );
 
-    const hayFiltro = fechaDesde !== '' || fechaHasta !== '';
+    const hayFiltro = fechaDesde !== '' || fechaHasta !== '' || filtroOrigen !== 'todas';
 
     if (loading) {
         return (
@@ -497,7 +632,7 @@ export default function AlertasPage() {
                         </div>
                         {hayFiltro && (
                             <button
-                                onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+                                onClick={() => { setFechaDesde(''); setFechaHasta(''); setFiltroOrigen('todas'); }}
                                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium transition-colors"
                             >
                                 Limpiar filtro
@@ -508,6 +643,25 @@ export default function AlertasPage() {
                                 Mostrando {reportesFiltrados.length + tarjetasFiltradas.length + controlesFiltrados.length} de {reportes.length + tarjetas.length + controlesART.length} registros
                             </p>
                         )}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold text-gray-500">Origen:</span>
+                        {(['todas', 'programadas', 'no-programadas'] as const).map((opcion) => (
+                            <button
+                                key={opcion}
+                                onClick={() => setFiltroOrigen(opcion)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                    filtroOrigen === opcion
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                }`}
+                            >
+                                {opcion === 'todas' && 'Todas'}
+                                {opcion === 'programadas' && 'Programadas'}
+                                {opcion === 'no-programadas' && 'No programadas'}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
@@ -532,6 +686,7 @@ export default function AlertasPage() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zona/Faena</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Riesgo</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reportado por</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origen</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsable Cierre</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
@@ -583,6 +738,17 @@ export default function AlertasPage() {
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {reporte.creadoPor.name || reporte.creadoPor.username}
                                                 </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    {esProgramadaReporte(reporte) ? (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                                            Programada
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                                                            No programada
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {reporte.responsableCierre ?
                                                         (reporte.responsableCierre.name || reporte.responsableCierre.username) :
@@ -616,6 +782,18 @@ export default function AlertasPage() {
                                                             </svg>
                                                             {pdfLoading === `reporte-${reporte.id}` ? 'Generando...' : 'Exportar'}
                                                         </button>
+                                                        {puedeEliminar && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleEliminar('reporte', reporte.id);
+                                                                }}
+                                                                disabled={eliminando === `reporte-${reporte.id}`}
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                                                            >
+                                                                {eliminando === `reporte-${reporte.id}` ? 'Eliminando...' : 'Eliminar'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -654,6 +832,7 @@ export default function AlertasPage() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Causal Detención</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zona/Faena</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reportado por</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origen</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsable Cierre</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
@@ -689,6 +868,17 @@ export default function AlertasPage() {
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {tarjeta.creadoPor.name || tarjeta.creadoPor.username}
                                                 </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    {esProgramadaTarjeta(tarjeta) ? (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                                            Programada
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                                                            No programada
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {tarjeta.responsableCierre ?
                                                         (tarjeta.responsableCierre.name || tarjeta.responsableCierre.username) :
@@ -722,6 +912,18 @@ export default function AlertasPage() {
                                                             </svg>
                                                             {pdfLoading === `tarjeta-${tarjeta.id}` ? 'Generando...' : 'Exportar'}
                                                         </button>
+                                                        {puedeEliminar && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleEliminar('tarjeta', tarjeta.id);
+                                                                }}
+                                                                disabled={eliminando === `tarjeta-${tarjeta.id}`}
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                                                            >
+                                                                {eliminando === `tarjeta-${tarjeta.id}` ? 'Eliminando...' : 'Eliminar'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -761,6 +963,7 @@ export default function AlertasPage() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zona/Faena</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cumplimiento</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reportado por</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origen</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                                     </tr>
@@ -801,6 +1004,17 @@ export default function AlertasPage() {
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {control.creadoPor.name || control.creadoPor.username}
                                                 </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    {esProgramadaControl(control) ? (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                                            Programada
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                                                            No programada
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {new Date(control.createdAt).toLocaleDateString('es-CL')}
                                                 </td>
@@ -828,6 +1042,18 @@ export default function AlertasPage() {
                                                             </svg>
                                                             {pdfLoading === `control-${control.id}` ? 'Generando...' : 'Exportar'}
                                                         </button>
+                                                        {puedeEliminar && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleEliminar('control', control.id);
+                                                                }}
+                                                                disabled={eliminando === `control-${control.id}`}
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                                                            >
+                                                                {eliminando === `control-${control.id}` ? 'Eliminando...' : 'Eliminar'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -840,6 +1066,98 @@ export default function AlertasPage() {
                         <div className="p-6">
                             <p className="text-gray-500 italic">
                                 {hayFiltro ? 'No hay controles ART en el rango de fechas seleccionado' : 'No hay controles de calidad ART para mostrar'}
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Actividades programadas pendientes */}
+                <div className="bg-white rounded-lg shadow mb-6 overflow-hidden">
+                    <div className="p-6 border-b border-gray-200">
+                        <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                            <svg className="w-6 h-6 text-indigo-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Actividades programadas pendientes ({actividadesPendientes.length})
+                        </h2>
+                        <p className="text-sm text-gray-600 mt-1">
+                            Tareas asignadas que aún no se han completado (próximas o atrasadas).
+                        </p>
+                    </div>
+                    {actividadesPendientes.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asignado a</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha programada</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha límite</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                        {puedeEliminar && (
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                                        )}
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {actividadesPendientes.map((actividad) => {
+                                        const meta = DASHBOARD_TIPO_META[actividad.tipo];
+                                        return (
+                                            <tr key={`${actividad.tipo}-${actividad.id}`} className="hover:bg-indigo-50 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${meta.badgeClass}`}>
+                                                        {meta.label}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-900">
+                                                    {actividad.descripcion}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                    {actividad.usuario}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {actividad.fechaProgramada
+                                                        ? new Date(actividad.fechaProgramada).toLocaleDateString('es-CL')
+                                                        : 'N/A'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {actividad.fechaLimite
+                                                        ? new Date(actividad.fechaLimite).toLocaleDateString('es-CL')
+                                                        : 'N/A'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    {actividad.estadoDisplay === 'atrasada' ? (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                                                            Atrasada
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                                                            Próxima
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                {puedeEliminar && (
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                        <button
+                                                            onClick={() => handleEliminarTarea(actividad.id)}
+                                                            disabled={eliminandoTarea === actividad.id}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                                                        >
+                                                            {eliminandoTarea === actividad.id ? 'Eliminando...' : 'Eliminar'}
+                                                        </button>
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="p-6">
+                            <p className="text-gray-500 italic">
+                                No hay actividades programadas pendientes.
                             </p>
                         </div>
                     )}

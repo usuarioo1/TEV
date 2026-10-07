@@ -811,6 +811,15 @@ export async function GET(request: Request) {
             detalleControlesProximos = [];
         }
 
+        // IDs de registros reales que fueron completados desde una tarea programada.
+        // Se exponen para que otras vistas (p. ej. /caminatas/alertas) puedan
+        // aplicar el mismo criterio de "programada" / "no programada" que este dashboard.
+        const programadasRecordIds = {
+            reporte_peligro: [...reporteMatchByTaskId.values()],
+            tarjeta_stop: [...tarjetaMatchByTaskId.values()],
+            control_art: [...controlMatchByTaskId.values()],
+        };
+
         // Detalles por tipo para historial expandible ────────────────────
         const detallePorTipo = {
             caminata: {
@@ -943,7 +952,7 @@ export async function GET(request: Request) {
             ],
         };
 
-        return NextResponse.json({ rows, detallePorTipo, detalles, userId: allUsersMode ? null : targetUserId });
+        return NextResponse.json({ rows, detallePorTipo, detalles, programadasRecordIds, userId: allUsersMode ? null : targetUserId });
     } catch (error) {
         console.error('Error al obtener tabla de actividades:', error);
         return NextResponse.json(

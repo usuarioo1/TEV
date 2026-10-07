@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { compressImage, safeResponseJson } from '@/lib/upload';
 
 interface ControlCalidadARTFormProps {
     caminataId: number | null;
@@ -53,15 +54,7 @@ export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, 
         'Están correctamente identificados los controles si existe trabajos SIMULTÁNEOS.',
     ];
 
-    // Función para convertir File a base64
-    const fileToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = error => reject(error);
-        });
-    };
+    const MAX_IMAGENES = 6;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -75,12 +68,18 @@ export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, 
             if (imagenes.length > 0) {
                 setError('Subiendo imágenes...');
 
-                // Convertir todas las imágenes a base64
+                if (imagenes.length > MAX_IMAGENES) {
+                    throw new Error(`Máximo ${MAX_IMAGENES} imágenes permitidas`);
+                }
+
+                // Comprimir imágenes antes de subir
+                setError('Comprimiendo imágenes...');
                 const base64Images = await Promise.all(
-                    imagenes.map(img => fileToBase64(img))
+                    imagenes.map(img => compressImage(img, { maxWidth: 1280, quality: 0.8 }))
                 );
 
                 // Subir a Cloudinary
+                setError('Subiendo imágenes...');
                 const uploadResponse = await fetch('/api/upload', {
                     method: 'POST',
                     headers: {
@@ -92,13 +91,12 @@ export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, 
                     }),
                 });
 
-                if (!uploadResponse.ok) {
-                    const uploadError = await uploadResponse.json();
-                    throw new Error(uploadError.error || 'Error al subir imágenes');
+                const uploadResult = await safeResponseJson<{ images: Array<{ url: string; publicId: string }> }>(uploadResponse);
+                if (!uploadResult.ok || !uploadResult.data) {
+                    throw new Error(uploadResult.error || 'Error al subir imágenes');
                 }
 
-                const uploadData = await uploadResponse.json();
-                imagenesUrls = uploadData.images;
+                imagenesUrls = uploadResult.data.images;
                 setError(null);
             }
 
@@ -132,14 +130,15 @@ export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, 
                 body: JSON.stringify(controlData),
             });
 
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Error al crear control de calidad ART');
+            const result = await safeResponseJson(response);
+            if (!result.ok) {
+                throw new Error(result.error || 'Error al crear control de calidad ART');
             }
 
             onSuccess();
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Error inesperado';
+            setError(message);
         } finally {
             setLoading(false);
         }
@@ -164,7 +163,14 @@ export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, 
 
     const handleImagenesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            setImagenes(Array.from(e.target.files));
+            const files = Array.from(e.target.files);
+            if (files.length > MAX_IMAGENES) {
+                setError(`Máximo ${MAX_IMAGENES} imágenes permitidas`);
+                e.target.value = '';
+                return;
+            }
+            setError(null);
+            setImagenes(files);
         }
     };
 
@@ -338,7 +344,7 @@ export default function ControlCalidadARTForm({ caminataId, tareaId, onSuccess, 
                 {/* Adjuntar Archivos / Evidencia */}
                 <div className="border-t pt-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Adjuntar Archivos / Evidencia (foto)
+                        Adjuntar Archivos / Evidencia (foto) - Máx. {MAX_IMAGENES}
                     </label>
                     <input
                         type="file"

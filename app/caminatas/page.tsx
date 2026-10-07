@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/app/context/SessionContext';
+import { safeResponseJson } from '@/lib/upload';
+import { getSantiagoDateKey } from '@/lib/date-chile';
 
 interface Caminata {
     id: number;
@@ -61,8 +63,12 @@ export default function CaminatasPage() {
     const [caminatas, setCaminatas] = useState<Caminata[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [eliminando, setEliminando] = useState<number | null>(null);
+
+    const puedeEliminar = userRole === 'prevencionista';
     const [fechaDesde, setFechaDesde] = useState('');
     const [fechaHasta, setFechaHasta] = useState('');
+    const [filtroProgramacion, setFiltroProgramacion] = useState<'todas' | 'programadas' | 'sin-programar'>('todas');
 
     useEffect(() => {
         if (session !== undefined && userRole === 'coordinador') {
@@ -88,7 +94,35 @@ export default function CaminatasPage() {
         }
     };
 
+    const handleEliminar = async (id: number) => {
+        if (!window.confirm('¿Estás seguro de eliminar esta caminata? Se eliminarán también sus reportes, tarjetas stop y controles ART asociados. Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        setEliminando(id);
+        try {
+            const response = await fetch(`/api/caminatas/${id}`, { method: 'DELETE' });
+            const result = await safeResponseJson(response);
+
+            if (!result.ok) {
+                throw new Error(result.error || 'Error al eliminar la caminata');
+            }
+
+            fetchCaminatas();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error al eliminar la caminata');
+        } finally {
+            setEliminando(null);
+        }
+    };
+
     const caminatasFiltradas = caminatas.filter(c => {
+        if (userRole === 'prevencionista' && filtroProgramacion !== 'todas') {
+            const estaProgramada = Boolean(c.fechaProgramada);
+            if (filtroProgramacion === 'programadas' && !estaProgramada) return false;
+            if (filtroProgramacion === 'sin-programar' && estaProgramada) return false;
+        }
+
         if (!fechaDesde && !fechaHasta) return true;
         if (!c.fechaProgramada) return false;
         const scheduledDate = toScheduledDateKey(c.fechaProgramada);
@@ -97,6 +131,24 @@ export default function CaminatasPage() {
         if (fechaHasta && scheduledDate > fechaHasta) return false;
         return true;
     });
+
+    const caminatasProximas = useMemo(() => {
+        // Se usa fecha calendario Chile para "hoy" para que no marque atrasada
+        // una caminata del día actual por un corrimiento de zona horaria.
+        const todayKey = getSantiagoDateKey(new Date());
+        return caminatas
+            .filter(c => {
+                if (c.estado === 'COMPLETADA' || c.estado === 'CANCELADA') return false;
+                if (!c.fechaProgramada) return false;
+                return true;
+            })
+            .map(c => {
+                const limiteKey = c.fechaLimite ? toScheduledDateKey(c.fechaLimite) : null;
+                const estadoDisplay = limiteKey && limiteKey < todayKey ? 'atrasada' : 'proxima';
+                return { ...c, estadoDisplay };
+            })
+            .sort((a, b) => new Date(a.fechaProgramada!).getTime() - new Date(b.fechaProgramada!).getTime());
+    }, [caminatas]);
 
     const getEstadoBadge = (estado: string) => {
         const badges = {
@@ -213,6 +265,27 @@ export default function CaminatasPage() {
                             </span>
                         )}
                     </div>
+
+                    {userRole === 'prevencionista' && (
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-500">Programación:</span>
+                            {(['todas', 'programadas', 'sin-programar'] as const).map((opcion) => (
+                                <button
+                                    key={opcion}
+                                    onClick={() => setFiltroProgramacion(opcion)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                        filtroProgramacion === opcion
+                                            ? 'bg-cyan-600 text-white'
+                                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    {opcion === 'todas' && 'Todas'}
+                                    {opcion === 'programadas' && 'Programadas'}
+                                    {opcion === 'sin-programar' && 'Sin programar'}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Stats Cards */}
@@ -277,6 +350,79 @@ export default function CaminatasPage() {
                     </div>
                 </div>
 
+                {/* Próximas caminatas */}
+                <div className="bg-white rounded-lg shadow mb-6 overflow-hidden">
+                    <div className="p-6 border-b border-gray-200">
+                        <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                            <svg className="w-6 h-6 text-cyan-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Próximas caminatas ({caminatasProximas.length})
+                        </h2>
+                        <p className="text-sm text-gray-600 mt-1">
+                            Caminatas programadas que aún no se completan, ordenadas por fecha de inicio.
+                        </p>
+                    </div>
+                    {caminatasProximas.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actividad</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zona / Faena</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asignado a</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inicio programado</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Límite</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {caminatasProximas.map((caminata) => (
+                                        <tr key={caminata.id} className="hover:bg-cyan-50 transition-colors cursor-pointer" onClick={() => router.push(`/caminatas/${caminata.id}`)}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                {caminata.codigo}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-900">
+                                                {caminata.actividad}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-700">
+                                                {caminata.zona} • {caminata.faena}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                {caminata.asignado.name || caminata.asignado.username}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {formatScheduledDate(caminata.fechaProgramada)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {formatScheduledDate(caminata.fechaLimite)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                {caminata.estadoDisplay === 'atrasada' ? (
+                                                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                                                        Atrasada
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-cyan-100 text-cyan-800">
+                                                        Próxima
+                                                    </span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="p-6">
+                            <p className="text-gray-500 italic">
+                                No hay caminatas programadas próximas.
+                            </p>
+                        </div>
+                    )}
+                </div>
+
                 {/* Lista de Caminatas */}
                 {caminatasFiltradas.length === 0 ? (
                     <div className="bg-white rounded-lg shadow p-12 text-center">
@@ -303,9 +449,41 @@ export default function CaminatasPage() {
                                         <h3 className="text-lg font-semibold text-gray-900">{caminata.codigo}</h3>
                                         <p className="text-sm text-gray-600 mt-1">{caminata.actividad}</p>
                                     </div>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getEstadoBadge(caminata.estado)}`}>
-                                        {caminata.estado.replace('_', ' ')}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        {userRole === 'prevencionista' && (
+                                            caminata.fechaProgramada ? (
+                                                <span
+                                                    className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800"
+                                                    title={`Programada: ${formatScheduledDate(caminata.fechaProgramada)}`}
+                                                >
+                                                    Programada
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800"
+                                                    title="Sin fecha programada"
+                                                >
+                                                    Sin programar
+                                                </span>
+                                            )
+                                        )}
+                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getEstadoBadge(caminata.estado)}`}>
+                                            {caminata.estado.replace('_', ' ')}
+                                        </span>
+                                        {puedeEliminar && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    handleEliminar(caminata.id);
+                                                }}
+                                                disabled={eliminando === caminata.id}
+                                                className="inline-flex items-center px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                                            >
+                                                {eliminando === caminata.id ? 'Eliminando...' : 'Eliminar'}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-4">

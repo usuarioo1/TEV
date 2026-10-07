@@ -149,3 +149,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }
+
+// DELETE - Eliminar tarea asignada
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const session = await getSession();
+
+    if (!session) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    try {
+        const { id } = await params;
+        const tarea = await prisma.tareaAsignada.findUnique({
+            where: { id: parseInt(id) },
+        });
+
+        if (!tarea) {
+            return NextResponse.json({ error: 'Tarea no encontrada' }, { status: 404 });
+        }
+
+        // Solo prevencionistas o quien creó la tarea pueden eliminarla
+        if (session.rol !== ROLES.PREVENCIONISTA && tarea.creadoPorId !== session.id) {
+            return NextResponse.json({ error: 'No tienes permisos para eliminar esta tarea' }, { status: 403 });
+        }
+
+        await prisma.tareaAsignada.delete({
+            where: { id: parseInt(id) },
+        });
+
+        return NextResponse.json({ ok: true, message: 'Tarea eliminada correctamente' });
+    } catch (error) {
+        console.error('Error al eliminar tarea:', error);
+        return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+    }
+}
