@@ -60,6 +60,7 @@ interface DashboardActivityRow {
 
 interface DashboardActivityResponse {
     rows?: DashboardActivityRow[];
+    programadasRecordIds?: Record<DashboardActivityTipo, number[]>;
     error?: string;
 }
 
@@ -105,6 +106,12 @@ export default function AlertasPage() {
     const [fechaHasta, setFechaHasta] = useState('');
     const [filtroOrigen, setFiltroOrigen] = useState<'todas' | 'programadas' | 'no-programadas'>('todas');
     const [dashboardRows, setDashboardRows] = useState<DashboardActivityRow[]>([]);
+    const [programadasIds, setProgramadasIds] = useState<Record<DashboardActivityTipo, Set<number>>>({
+        caminata: new Set(),
+        reporte_peligro: new Set(),
+        tarjeta_stop: new Set(),
+        control_art: new Set(),
+    });
     const [dashboardLoading, setDashboardLoading] = useState(true);
     const [dashboardError, setDashboardError] = useState<string | null>(null);
 
@@ -201,9 +208,21 @@ export default function AlertasPage() {
             }
 
             setDashboardRows(Array.isArray(data.rows) ? data.rows : []);
+            setProgramadasIds({
+                caminata: new Set(),
+                reporte_peligro: new Set(data.programadasRecordIds?.reporte_peligro ?? []),
+                tarjeta_stop: new Set(data.programadasRecordIds?.tarjeta_stop ?? []),
+                control_art: new Set(data.programadasRecordIds?.control_art ?? []),
+            });
         } catch (err) {
             setDashboardError(err instanceof Error ? err.message : 'Error al cargar el resumen de actividades');
             setDashboardRows([]);
+            setProgramadasIds({
+                caminata: new Set(),
+                reporte_peligro: new Set(),
+                tarjeta_stop: new Set(),
+                control_art: new Set(),
+            });
         } finally {
             setDashboardLoading(false);
         }
@@ -341,14 +360,16 @@ export default function AlertasPage() {
         return new Date(dateStr).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
     }
 
-    const esProgramada = (item: Reporte) => item.creadoPor.rol === 'prevencionista';
+    const esProgramadaReporte = (item: Reporte) => programadasIds.reporte_peligro.has(item.id);
+    const esProgramadaTarjeta = (item: Reporte) => programadasIds.tarjeta_stop.has(item.id);
+    const esProgramadaControl = (item: Reporte) => programadasIds.control_art.has(item.id);
 
     const reportesFiltrados = reportes.filter((r) => {
         const fecha = toChileDate(r.createdAt);
         if (fechaDesde && fecha < fechaDesde) return false;
         if (fechaHasta && fecha > fechaHasta) return false;
-        if (filtroOrigen === 'programadas' && !esProgramada(r)) return false;
-        if (filtroOrigen === 'no-programadas' && esProgramada(r)) return false;
+        if (filtroOrigen === 'programadas' && !esProgramadaReporte(r)) return false;
+        if (filtroOrigen === 'no-programadas' && esProgramadaReporte(r)) return false;
         return true;
     });
 
@@ -356,8 +377,8 @@ export default function AlertasPage() {
         const fecha = toChileDate(t.createdAt);
         if (fechaDesde && fecha < fechaDesde) return false;
         if (fechaHasta && fecha > fechaHasta) return false;
-        if (filtroOrigen === 'programadas' && !esProgramada(t)) return false;
-        if (filtroOrigen === 'no-programadas' && esProgramada(t)) return false;
+        if (filtroOrigen === 'programadas' && !esProgramadaTarjeta(t)) return false;
+        if (filtroOrigen === 'no-programadas' && esProgramadaTarjeta(t)) return false;
         return true;
     });
 
@@ -365,8 +386,8 @@ export default function AlertasPage() {
         const fecha = toChileDate(c.createdAt);
         if (fechaDesde && fecha < fechaDesde) return false;
         if (fechaHasta && fecha > fechaHasta) return false;
-        if (filtroOrigen === 'programadas' && !esProgramada(c)) return false;
-        if (filtroOrigen === 'no-programadas' && esProgramada(c)) return false;
+        if (filtroOrigen === 'programadas' && !esProgramadaControl(c)) return false;
+        if (filtroOrigen === 'no-programadas' && esProgramadaControl(c)) return false;
         return true;
     });
 
@@ -651,7 +672,7 @@ export default function AlertasPage() {
                                                     {reporte.creadoPor.name || reporte.creadoPor.username}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                    {esProgramada(reporte) ? (
+                                                    {esProgramadaReporte(reporte) ? (
                                                         <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
                                                             Programada
                                                         </span>
@@ -781,7 +802,7 @@ export default function AlertasPage() {
                                                     {tarjeta.creadoPor.name || tarjeta.creadoPor.username}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                    {esProgramada(tarjeta) ? (
+                                                    {esProgramadaTarjeta(tarjeta) ? (
                                                         <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
                                                             Programada
                                                         </span>
@@ -917,7 +938,7 @@ export default function AlertasPage() {
                                                     {control.creadoPor.name || control.creadoPor.username}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                    {esProgramada(control) ? (
+                                                    {esProgramadaControl(control) ? (
                                                         <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
                                                             Programada
                                                         </span>
