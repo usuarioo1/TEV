@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/app/context/SessionContext';
 import { safeResponseJson } from '@/lib/upload';
+import { getSantiagoDateKey } from '@/lib/date-chile';
 
 interface Caminata {
     id: number;
@@ -130,6 +131,24 @@ export default function CaminatasPage() {
         if (fechaHasta && scheduledDate > fechaHasta) return false;
         return true;
     });
+
+    const caminatasProximas = useMemo(() => {
+        // Se usa fecha calendario Chile para "hoy" para que no marque atrasada
+        // una caminata del día actual por un corrimiento de zona horaria.
+        const todayKey = getSantiagoDateKey(new Date());
+        return caminatas
+            .filter(c => {
+                if (c.estado === 'COMPLETADA' || c.estado === 'CANCELADA') return false;
+                if (!c.fechaProgramada) return false;
+                return true;
+            })
+            .map(c => {
+                const limiteKey = c.fechaLimite ? toScheduledDateKey(c.fechaLimite) : null;
+                const estadoDisplay = limiteKey && limiteKey < todayKey ? 'atrasada' : 'proxima';
+                return { ...c, estadoDisplay };
+            })
+            .sort((a, b) => new Date(a.fechaProgramada!).getTime() - new Date(b.fechaProgramada!).getTime());
+    }, [caminatas]);
 
     const getEstadoBadge = (estado: string) => {
         const badges = {
@@ -329,6 +348,79 @@ export default function CaminatasPage() {
                             </div>
                         </div>
                     </div>
+                </div>
+
+                {/* Próximas caminatas */}
+                <div className="bg-white rounded-lg shadow mb-6 overflow-hidden">
+                    <div className="p-6 border-b border-gray-200">
+                        <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                            <svg className="w-6 h-6 text-cyan-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Próximas caminatas ({caminatasProximas.length})
+                        </h2>
+                        <p className="text-sm text-gray-600 mt-1">
+                            Caminatas programadas que aún no se completan, ordenadas por fecha de inicio.
+                        </p>
+                    </div>
+                    {caminatasProximas.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actividad</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zona / Faena</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asignado a</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inicio programado</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Límite</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {caminatasProximas.map((caminata) => (
+                                        <tr key={caminata.id} className="hover:bg-cyan-50 transition-colors cursor-pointer" onClick={() => router.push(`/caminatas/${caminata.id}`)}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                {caminata.codigo}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-900">
+                                                {caminata.actividad}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-700">
+                                                {caminata.zona} • {caminata.faena}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                {caminata.asignado.name || caminata.asignado.username}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {formatScheduledDate(caminata.fechaProgramada)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {formatScheduledDate(caminata.fechaLimite)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                {caminata.estadoDisplay === 'atrasada' ? (
+                                                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                                                        Atrasada
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-cyan-100 text-cyan-800">
+                                                        Próxima
+                                                    </span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="p-6">
+                            <p className="text-gray-500 italic">
+                                No hay caminatas programadas próximas.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Lista de Caminatas */}
