@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { compressImage, safeResponseJson } from '@/lib/upload';
 
 interface Usuario {
     id: number;
@@ -163,16 +164,6 @@ export default function AlertasPendientesPage() {
         }
     };
 
-    // Función para convertir File a base64
-    const fileToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = error => reject(error);
-        });
-    };
-
     const fetchAlertas = async () => {
         try {
             const response = await fetch('/api/alertas/pendientes');
@@ -205,9 +196,9 @@ export default function AlertasPendientesPage() {
         try {
             let imagenCierreUrl = null;
 
-            // Si hay imagen, subirla a Cloudinary primero
+            // Si hay imagen, comprimirla y subirla a Cloudinary primero
             if (imagenCierre) {
-                const base64Image = await fileToBase64(imagenCierre);
+                const base64Image = await compressImage(imagenCierre, { maxWidth: 1280, quality: 0.8 });
 
                 const uploadResponse = await fetch('/api/upload', {
                     method: 'POST',
@@ -220,13 +211,12 @@ export default function AlertasPendientesPage() {
                     }),
                 });
 
-                if (!uploadResponse.ok) {
-                    const uploadError = await uploadResponse.json();
-                    throw new Error(uploadError.error || 'Error al subir imagen');
+                const uploadResult = await safeResponseJson<{ images: Array<{ url: string }> }>(uploadResponse);
+                if (!uploadResult.ok || !uploadResult.data?.images?.[0]?.url) {
+                    throw new Error(uploadResult.error || 'Error al subir imagen de cierre');
                 }
 
-                const uploadData = await uploadResponse.json();
-                imagenCierreUrl = uploadData.images[0].url;
+                imagenCierreUrl = uploadResult.data.images[0].url;
             }
 
             const endpoint = selectedItem.type === 'reporte'
@@ -288,9 +278,9 @@ export default function AlertasPendientesPage() {
         try {
             let imagenVerificacionUrl = null;
 
-            // Si hay imagen, subirla a Cloudinary primero
+            // Si hay imagen, comprimirla y subirla a Cloudinary primero
             if (imagenVerificacion) {
-                const base64Image = await fileToBase64(imagenVerificacion);
+                const base64Image = await compressImage(imagenVerificacion, { maxWidth: 1280, quality: 0.8 });
 
                 const uploadResponse = await fetch('/api/upload', {
                     method: 'POST',
@@ -303,13 +293,12 @@ export default function AlertasPendientesPage() {
                     }),
                 });
 
-                if (!uploadResponse.ok) {
-                    const uploadError = await uploadResponse.json();
-                    throw new Error(uploadError.error || 'Error al subir imagen');
+                const uploadResult = await safeResponseJson<{ images: Array<{ url: string }> }>(uploadResponse);
+                if (!uploadResult.ok || !uploadResult.data?.images?.[0]?.url) {
+                    throw new Error(uploadResult.error || 'Error al subir imagen de verificación');
                 }
 
-                const uploadData = await uploadResponse.json();
-                imagenVerificacionUrl = uploadData.images[0].url;
+                imagenVerificacionUrl = uploadResult.data.images[0].url;
             }
 
             const response = await fetch(`/api/reportes-peligro/${verificandoItem.id}/verificar`, {
