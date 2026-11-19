@@ -5,6 +5,11 @@ import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+interface ImagenObservacion {
+    url: string;
+    publicId: string;
+}
+
 // GET - Obtener una caminata específica
 export async function GET(
     request: NextRequest,
@@ -138,9 +143,25 @@ export async function PUT(
 
         if (caminata.asignadoId === session.id) {
             // El asignado puede actualizar avance y completar información operativa
-            const { observaciones, tieneFotografias, tieneDocumentos, estado, zona, faena, actividad, acompananteId, empresaId } = body;
+            const { observaciones, observacionesImagenes, tieneFotografias, tieneDocumentos, estado, zona, faena, actividad, acompananteId, empresaId } = body;
 
             if (observaciones !== undefined) updateData.observaciones = observaciones;
+
+            if (observacionesImagenes !== undefined) {
+                if (observacionesImagenes === null) {
+                    updateData.observacionesImagenes = null;
+                } else if (Array.isArray(observacionesImagenes)) {
+                    const esValido = observacionesImagenes.every(
+                        (img: ImagenObservacion) => img && typeof img.url === 'string' && img.url.length > 0 && typeof img.publicId === 'string'
+                    );
+                    if (!esValido) {
+                        return NextResponse.json({ error: 'Formato de imágenes inválido' }, { status: 400 });
+                    }
+                    updateData.observacionesImagenes = observacionesImagenes;
+                } else {
+                    return NextResponse.json({ error: 'Formato de imágenes inválido' }, { status: 400 });
+                }
+            }
             if (tieneFotografias !== undefined) updateData.tieneFotografias = tieneFotografias;
             if (tieneDocumentos !== undefined) updateData.tieneDocumentos = tieneDocumentos;
             if (estado !== undefined) updateData.estado = estado;

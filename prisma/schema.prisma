@@ -246,6 +246,7 @@ model CaminataSeguridad {
   acompananteId       Int?
   estado              EstadoCaminata      @default(PENDIENTE)
   observaciones       String?
+  observacionesImagenes Json?
   tieneFotografias    Boolean             @default(false)
   tieneDocumentos     Boolean             @default(false)
   fechaProgramada     DateTime?

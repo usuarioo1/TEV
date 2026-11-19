@@ -8,6 +8,7 @@ import ReportePeligroForm from '@/components/caminatas/ReportePeligroForm';
 import TarjetaStopForm from '@/components/caminatas/TarjetaStopForm';
 import ImageGallery from '@/components/caminatas/ImageGallery';
 import AlertTimeline from '@/components/caminatas/AlertTimeline';
+import { compressImage, safeResponseJson } from '@/lib/upload';
 import { useSession } from '@/app/context/SessionContext';
 
 interface ReportePeligro {
@@ -53,6 +54,7 @@ interface Caminata {
     actividad: string;
     estado: string;
     observaciones: string | null;
+    observacionesImagenes?: Array<{ url: string; publicId: string }> | null;
     tieneFotografias: boolean;
     tieneDocumentos: boolean;
     fechaProgramada?: string | null;
@@ -103,6 +105,9 @@ export default function DetalleCaminataPage() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [tipoFormulario, setTipoFormulario] = useState<'seleccion' | 'peligro' | 'stop'>('seleccion');
     const [trabajadores, setTrabajadores] = useState<{ id: number; name: string | null; username: string; rol: string }[]>([]);
+    const [fotosObservaciones, setFotosObservaciones] = useState<{ file: File; previewUrl: string }[]>([]);
+
+    const MAX_FOTOS_OBSERVACIONES = 6;
 
     const [formData, setFormData] = useState({
         observaciones: '',
@@ -171,16 +176,87 @@ export default function DetalleCaminataPage() {
         }
     };
 
+    const handleFotosObservacionesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        const nuevas = files.map(file => ({
+            file,
+            previewUrl: URL.createObjectURL(file),
+        }));
+        const acumuladas = [...fotosObservaciones, ...nuevas];
+
+        if (acumuladas.length > MAX_FOTOS_OBSERVACIONES) {
+            setError(`Máximo ${MAX_FOTOS_OBSERVACIONES} fotos permitidas`);
+            const excedentes = acumuladas.slice(MAX_FOTOS_OBSERVACIONES);
+            excedentes.forEach(f => URL.revokeObjectURL(f.previewUrl));
+            setFotosObservaciones(acumuladas.slice(0, MAX_FOTOS_OBSERVACIONES));
+        } else {
+            setError(null);
+            setFotosObservaciones(acumuladas);
+        }
+
+        // Permitir volver a seleccionar el mismo archivo
+        e.target.value = '';
+    };
+
+    const removeFotoObservacion = (index: number) => {
+        const foto = fotosObservaciones[index];
+        if (foto) URL.revokeObjectURL(foto.previewUrl);
+        setFotosObservaciones(fotosObservaciones.filter((_, i) => i !== index));
+    };
+
+    const subirFotosObservaciones = async (): Promise<Array<{ url: string; publicId: string }>> => {
+        if (fotosObservaciones.length === 0) return [];
+
+        setError('Comprimiendo imágenes...');
+        const base64Images = await Promise.all(
+            fotosObservaciones.map(f => compressImage(f.file, { maxWidth: 1280, quality: 0.8 }))
+        );
+
+        setError('Subiendo imágenes...');
+        const uploadResponse = await fetch('/api/upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                images: base64Images,
+                folder: 'caminatas/observaciones',
+            }),
+        });
+
+        const uploadResult = await safeResponseJson<{ images: Array<{ url: string; publicId: string }> }>(uploadResponse);
+        if (!uploadResult.ok || !uploadResult.data) {
+            throw new Error(uploadResult.error || 'Error al subir las fotos de observaciones');
+        }
+
+        setError(null);
+        return uploadResult.data.images;
+    };
+
     const handleChangeEstado = async (nuevoEstado: string) => {
         if (!caminata) return;
         setUpdating(true);
         setError(null);
 
         try {
-            const payload: { estado: string; observaciones?: string } = { estado: nuevoEstado };
+            const payload: {
+                estado: string;
+                observaciones?: string;
+                observacionesImagenes?: Array<{ url: string; publicId: string }>;
+            } = { estado: nuevoEstado };
 
             if (nuevoEstado === 'COMPLETADA') {
                 payload.observaciones = formData.observaciones;
+
+                const fotosSubidas = await subirFotosObservaciones();
+                if (fotosSubidas.length > 0 || (caminata.observacionesImagenes?.length ?? 0) > 0) {
+                    payload.observacionesImagenes = [
+                        ...(caminata.observacionesImagenes || []),
+                        ...fotosSubidas,
+                    ];
+                }
             }
 
             const response = await fetch(`/api/caminatas/${id}`, {
@@ -752,8 +828,58 @@ export default function DetalleCaminataPage() {
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-black"
                                         placeholder="Agrega observaciones sobre la caminata..."
                                     />
-                                    <p className="mt-2 text-xs text-gray-500">
-                                        Las observaciones se guardarán cuando presiones "Completar Caminata".
+
+                                    {/* Evidencia fotográfica de observaciones */}
+                                    <div className="mt-4 pt-4 border-t border-gray-200">
+                                        <label htmlFor="fotos-observaciones" className="block text-sm font-medium text-gray-700 mb-2">
+                                            Evidencia fotográfica (opcional)
+                                        </label>
+                                        <input
+                                            type="file"
+                                            id="fotos-observaciones"
+                                            accept="image/*"
+                                            multiple
+                                            onChange={handleFotosObservacionesChange}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                                        />
+                                        <p className="mt-2 text-xs text-gray-500">
+                                            {fotosObservaciones.length < MAX_FOTOS_OBSERVACIONES
+                                                ? `Puedes agregar hasta ${MAX_FOTOS_OBSERVACIONES - fotosObservaciones.length} fotos más (JPG, PNG, etc.)`
+                                                : `Alcanzaste el máximo de ${MAX_FOTOS_OBSERVACIONES} fotos`}
+                                        </p>
+
+                                        {fotosObservaciones.length > 0 && (
+                                            <div className="mt-3">
+                                                <p className="text-sm font-medium text-gray-700 mb-2">
+                                                    Fotos seleccionadas ({fotosObservaciones.length}):
+                                                </p>
+                                                <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                                    {fotosObservaciones.map((foto, index) => (
+                                                        <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200">
+                                                            <img
+                                                                src={foto.previewUrl}
+                                                                alt={`Foto ${index + 1}`}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeFotoObservacion(index)}
+                                                                className="absolute top-1 right-1 bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                                                                title="Quitar foto"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <p className="mt-4 text-xs text-gray-500">
+                                        Las observaciones y fotos se guardarán cuando presiones "Completar Caminata".
                                     </p>
                                 </>
                             ) : (
@@ -766,6 +892,14 @@ export default function DetalleCaminataPage() {
                                         <p className="text-gray-500 italic">Sin observaciones</p>
                                     )}
 
+                                    {caminata.observacionesImagenes && caminata.observacionesImagenes.length > 0 && (
+                                        <div className="mt-4 pt-4 border-t border-gray-200">
+                                            <ImageGallery
+                                                images={caminata.observacionesImagenes}
+                                                title="Evidencia fotográfica"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -779,9 +913,16 @@ export default function DetalleCaminataPage() {
                                         <button
                                             onClick={() => handleChangeEstado('EN_PROCESO')}
                                             disabled={updating}
-                                            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+                                            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors flex items-center justify-center gap-2"
                                         >
-                                            Iniciar Caminata
+                                            {updating ? (
+                                                <>
+                                                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
+                                                    Iniciando...
+                                                </>
+                                            ) : (
+                                                'Iniciar Caminata'
+                                            )}
                                         </button>
                                     )}
                                     {caminata.estado === 'PENDIENTE' && !canStartCaminata && (
@@ -793,9 +934,16 @@ export default function DetalleCaminataPage() {
                                         <button
                                             onClick={() => handleChangeEstado('COMPLETADA')}
                                             disabled={updating}
-                                            className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+                                            className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors flex items-center justify-center gap-2"
                                         >
-                                            Completar Caminata
+                                            {updating ? (
+                                                <>
+                                                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
+                                                    Guardando...
+                                                </>
+                                            ) : (
+                                                'Completar Caminata'
+                                            )}
                                         </button>
                                     )}
                                 </div>
